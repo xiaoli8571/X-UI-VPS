@@ -756,8 +756,11 @@ async function verifyAuth(authHeader, request, db, env, context) {
 async function verifyAgent(authHeader, ip, db, env) {
     if (!authHeader) return false;
     if (ip) {
-        const server = await db.prepare("SELECT agent_token FROM servers WHERE ip = ?").bind(ip).first();
-        if (server && server.agent_token && authHeader === server.agent_token) return true;
+        // 宿主机与容器可能共享同一 IP：任一记录的 token 匹配即通过
+        const { results } = await db.prepare("SELECT agent_token FROM servers WHERE ip = ?").bind(ip).all();
+        for (const r of results || []) {
+            if (r.agent_token && authHeader === r.agent_token) return true;
+        }
     }
     return false;
 }
@@ -1311,7 +1314,8 @@ export async function onRequest(context) {
 
     if (action === "agent_update" && method === "GET") {
         const ip = new URL(request.url).searchParams.get('ip');
-        if (!(await verifyAgent(request.headers.get('Authorization'), ip, db, env))) return new Response('Unauthorized', { status: 401 });
+        const authHeader = request.headers.get('Authorization');
+        if (!(await verifyAgent(authHeader, ip, db, env))) return new Response('Unauthorized', { status: 401 });
         if (!env.ASSETS) return Response.json({ error: 'ASSETS binding is unavailable' }, { status: 503 });
         const component = new URL(request.url).searchParams.get('component') || 'agent';
         const assets = { agent: '/vps/agent.py', 'realtime-client': '/vps/realtime_client.py', 'proxy-manager': '/vps/lite_manager.py', 'proxy-server': '/vps/proxy_server.py', 'proxy-installer': '/vps/residential-proxy.sh', 'full-installer': '/vps/xui.sh' };
@@ -1323,9 +1327,9 @@ export async function onRequest(context) {
         const digest = await crypto.subtle.digest('SHA-256', source);
         const sha256 = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
         const server = await db.prepare('SELECT agent_token FROM servers WHERE ip = ?').bind(ip).first();
-        if (!server?.agent_token) return new Response('Agent token unavailable', { status: 503 });
+        // 同 IP 可能有多条记录（宿主机/容器）：manifest HMAC 用请求携带的 token（已通过 verifyAgent）
         const manifest = updateManifest(component, sha256, source.byteLength);
-        const mac = await hmacHex(server.agent_token, manifest);
+        const mac = await hmacHex(String(authHeader || server?.agent_token || ''), manifest);
         const contentType = component.endsWith('installer') ? 'text/x-shellscript; charset=utf-8' : 'text/x-python; charset=utf-8';
         return new Response(source, { headers: { 'Content-Type': contentType, 'Cache-Control': 'no-store', 'X-Agent-SHA256': sha256, 'X-Agent-Manifest-Version': '1', 'X-Agent-Length': String(source.byteLength), 'X-Agent-MAC': mac, 'X-Proxy-Controller-Mode': env.PROXY_CTRL_URL ? 'external' : 'builtin' } });
     }

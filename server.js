@@ -73,7 +73,8 @@ const MIME = {
 };
 const assetsAdapter = {
   async fetch(request) {
-    const url = new URL(request.url);
+    // Cloudflare ASSETS.fetch 可传 URL 对象或 Request；这里兼容两者
+    const url = new URL(typeof request === 'string' ? request : (request instanceof URL ? request.href : request.url));
     let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
     if (!rel) rel = 'index.html';
     // Path traversal guard
