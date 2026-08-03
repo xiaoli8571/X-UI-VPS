@@ -679,6 +679,7 @@ async function initializeDbSchema(db) {
     try { await db.prepare("SELECT proxy_mode FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN proxy_mode TEXT DEFAULT 'global'").run(); } catch(err){} }
     try { await db.prepare("SELECT proxy_categories FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN proxy_categories TEXT DEFAULT ''").run(); } catch(err){} }
     try { await db.prepare("SELECT egress_ip FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN egress_ip TEXT DEFAULT ''").run(); } catch(err){} }
+    try { await db.prepare("SELECT os FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN os TEXT DEFAULT 'debian'").run(); } catch(err){} }
     // SSH 凭据列（WebSSH 用）
     try { await db.prepare("SELECT ssh_user FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN ssh_user TEXT DEFAULT ''").run(); } catch(err){} }
     try { await db.prepare("SELECT ssh_pass FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN ssh_pass TEXT DEFAULT ''").run(); } catch(err){} }
@@ -1967,8 +1968,8 @@ rules:
             await ensureDbSchema(db);
             // 📤 导出 VPS 列表（JSON 文件下载）
             if (method === "GET" && params.path[1] === "export") {
-                const { results } = await db.prepare("SELECT ip, name FROM servers ORDER BY name").all();
-                const data = (results || []).map(r => ({ name: r.name || r.ip, ip: r.ip }));
+                const { results } = await db.prepare("SELECT ip, name, os FROM servers ORDER BY name").all();
+                const data = (results || []).map(r => ({ name: r.name || r.ip, ip: r.ip, os: r.os || 'debian' }));
                 const stamp = new Date().toISOString().slice(0, 10);
                 return Response.json(data, { headers: { "Content-Disposition": `attachment; filename="xui-vps-${stamp}.json"`, "Cache-Control": "no-store" } });
             }
@@ -1976,10 +1977,15 @@ rules:
             if (method === "POST" && params.path[1] === "import") {
                 let list;
                 // 注意：不能用 readJsonBody（它拒绝数组）；导入数据是 [{name,ip},...] 数组
-                try { list = await request.json(); } catch (e) { return Response.json({ error: 'Invalid JSON body' }, { status: 400 }); }
+                // HTTP body 只能读一次：text() 后 parse，失败则去尾随逗号重试（手动编辑常见）
+                try {
+                    const raw = await request.text();
+                    try { list = JSON.parse(raw); }
+                    catch (e) { list = JSON.parse(raw.replace(/,\s*([}\]])/g, '$1')); }
+                } catch (e) { return Response.json({ error: 'Invalid JSON body' }, { status: 400 }); }
                 if (!Array.isArray(list)) {
                     if (list && Array.isArray(list.servers)) list = list.servers;
-                    else return Response.json({ error: '导入内容需为 [{name, ip}, ...] 数组' }, { status: 400 });
+                    else return Response.json({ error: '导入内容需为 [{name, ip, os?}, ...] 数组' }, { status: 400 });
                 }
                 if (list.length > 100) return Response.json({ error: '单次最多导入 100 台 VPS' }, { status: 400 });
                 const statements = [];
@@ -1987,16 +1993,17 @@ rules:
                 for (const item of list) {
                     const ip = String(item && item.ip || '').trim();
                     const name = String(item && item.name || ip).trim().slice(0, 100);
+                    const os = ['alpine', 'debian', 'ubuntu'].includes(String(item && item.os || '').toLowerCase()) ? String(item.os).toLowerCase() : 'debian';
                     if (!/^[0-9A-Fa-f:.]{2,64}$/.test(ip) || seen.has(ip)) continue;
                     seen.add(ip);
-                    statements.push(db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token) SELECT ?, ?, 0, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO NOTHING RETURNING ip").bind(ip, name, crypto.randomUUID()));
+                    statements.push(db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token, os) SELECT ?, ?, 0, ?, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO NOTHING RETURNING ip").bind(ip, name, crypto.randomUUID(), os));
                 }
                 if (!statements.length) return Response.json({ success: true, imported: 0, total: 0, message: '没有有效记录' });
                 const results = await db.batch(statements);
                 const imported = results.filter(r => r && r.results && r.results.length > 0).length;
                 return Response.json({ success: true, imported, total: list.length, skipped: list.length - imported });
             }
-            if (method === "POST") { const { ip, name } = await request.json(); if (!/^[0-9A-Fa-f:.]{2,64}$/.test(String(ip || ''))) return Response.json({ error: 'Invalid VPS IP' }, { status: 400 }); const agentToken = crypto.randomUUID(); const inserted = await db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token) SELECT ?, ?, 0, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO NOTHING RETURNING ip").bind(ip, String(name || ip).slice(0, 100), agentToken).first(); if (!inserted) { if (await db.prepare('SELECT ip FROM servers WHERE ip = ? AND name = ?').bind(ip, String(name || ip).slice(0, 100)).first()) return Response.json({ error: 'VPS already exists' }, { status: 409 }); return Response.json({ error: "当前版本最多管理 100 台 VPS" }, { status: 409 }); } return Response.json({ success: true }); }
+            if (method === "POST") { const { ip, name, os } = await request.json(); if (!/^[0-9A-Fa-f:.]{2,64}$/.test(String(ip || ''))) return Response.json({ error: 'Invalid VPS IP' }, { status: 400 }); const agentToken = crypto.randomUUID(); const osVal = ['alpine', 'debian', 'ubuntu'].includes(String(os || '').toLowerCase()) ? String(os).toLowerCase() : 'debian'; const inserted = await db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token, os) SELECT ?, ?, 0, ?, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO NOTHING RETURNING ip").bind(ip, String(name || ip).slice(0, 100), agentToken, osVal).first(); if (!inserted) { if (await db.prepare('SELECT ip FROM servers WHERE ip = ? AND name = ?').bind(ip, String(name || ip).slice(0, 100)).first()) return Response.json({ error: 'VPS already exists' }, { status: 409 }); return Response.json({ error: "当前版本最多管理 100 台 VPS" }, { status: 409 }); } return Response.json({ success: true }); }
             if (method === "PUT") { const data = await request.json(); const ip = data.ip; if (!ip) return Response.json({ error: 'IP required' }, { status: 400 }); if (data.egress_mode === undefined) return Response.json({ error: 'Use egress_mode to configure node egress' }, { status: 400 }); const modes = ['native', 'residential', 'warp_ipv4', 'warp_ipv6', 'warp_dual', 'socks5']; if (!modes.includes(data.egress_mode)) return Response.json({ error: 'Invalid egress mode' }, { status: 400 }); if (data.egress_mode === 'residential' && env.PROXY_CTRL_URL) return Response.json({ error: '外部住宅控制器模式不支持本机住宅节点出口' }, { status: 409 }); if (data.egress_mode === 'residential' && (!env.PROXY_USER || !env.PROXY_PASS)) return Response.json({ error: 'Pages 未配置住宅代理凭据' }, { status: 503 }); const proxyMode = data.proxy_mode === 'selective' ? 'selective' : 'global'; const proxyCategories = data.proxy_categories ? String(data.proxy_categories) : ''; const socks5Addr = String(data.socks5_addr || '').slice(0, 128); const socks5Port = Math.min(65535, Math.max(1, Number(data.socks5_port) || 0)); const socks5User = String(data.socks5_user || '').slice(0, 64); const socks5Pass = String(data.socks5_pass || '').slice(0, 128); let changed; if (data.egress_mode === 'socks5' && socks5Addr && socks5Port) { changed = await db.prepare("UPDATE servers SET egress_mode = ?, egress_revision = egress_revision + 1, egress_status = 'pending', egress_error = '', proxy_mode = ?, proxy_categories = ?, socks5_addr = ?, socks5_port = ?, socks5_user = ?, socks5_pass = ? WHERE ip = ? RETURNING egress_revision").bind(data.egress_mode, proxyMode, proxyCategories, socks5Addr, socks5Port, socks5User, socks5Pass, ip).first(); } else { changed = await db.prepare("UPDATE servers SET egress_mode = ?, egress_revision = egress_revision + 1, egress_status = 'pending', egress_error = '', proxy_mode = ?, proxy_categories = ? WHERE ip = ? RETURNING egress_revision").bind(data.egress_mode, proxyMode, proxyCategories, ip).first(); } if (!changed) return Response.json({ error: 'VPS not found' }, { status: 404 }); context.waitUntil(notifyRealtimeVps(env, db, ip).catch(() => {})); return Response.json({ success: true, ip, egress_mode: data.egress_mode, egress_revision: Number(changed.egress_revision), egress_status: 'pending', proxy_mode: proxyMode, proxy_categories: proxyCategories, socks5_addr: data.egress_mode === 'socks5' ? socks5Addr : '', socks5_port: data.egress_mode === 'socks5' ? socks5Port : 0 }); }
             if (method === "DELETE") { 
                 const ip = new URL(request.url).searchParams.get("ip"); 

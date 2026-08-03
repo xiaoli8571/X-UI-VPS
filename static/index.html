@@ -433,7 +433,7 @@
                     <button @click="addVps" class="bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-bold hover:bg-black transition-all shadow-lg hover:scale-105 whitespace-nowrap">接入机器</button>
                     <div class="flex gap-2">
                         <button @click="exportVps" title="导出全部 VPS（名称+IP）" class="bg-white/70 border border-slate-200 text-slate-600 px-4 py-3.5 rounded-2xl font-bold hover:bg-white transition-all shadow-sm whitespace-nowrap">📤 导出 VPS</button>
-                        <button @click="$refs.vpsImportFile.click()" title="导入 VPS（JSON 或 CSV：每行 名称,IP）" class="bg-white/70 border border-slate-200 text-slate-600 px-4 py-3.5 rounded-2xl font-bold hover:bg-white transition-all shadow-sm whitespace-nowrap">📥 导入 VPS</button>
+                        <button @click="$refs.vpsImportFile.click()" title="导入 VPS（JSON 或 CSV：每行 名称,IP[,系统]；系统可填 alpine/debian/ubuntu）" class="bg-white/70 border border-slate-200 text-slate-600 px-4 py-3.5 rounded-2xl font-bold hover:bg-white transition-all shadow-sm whitespace-nowrap">📥 导入 VPS</button>
                         <input ref="vpsImportFile" type="file" accept=".json,.csv,application/json,text/csv" class="hidden" @change="importVpsFile($event)">
                     </div>
                 </div>
@@ -1550,7 +1550,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                         if (data.realtimeUrl && data.realtimeUrl !== realtimeUrl.value) { realtimeUrl.value = data.realtimeUrl; connectRealtime(); }
                         servers.value.forEach(s => { 
                             if(!newNodeParams[s.ip]) newNodeParams[s.ip] = { protocol: 'XTLS-Reality', port: 443, username: 'admin', sni: '', relay_type: 'external', target_ip: '', target_port: '', target_id: '', traffic_limit_gb: '', expire_date: '' };
-                            if(!deployOsMap[s.ip]) deployOsMap[s.ip] = 'debian'; if(!batchStartPort[s.ip]) batchStartPort[s.ip] = ''; if(!batchUser[s.ip]) batchUser[s.ip] = 'admin';
+                            if(!deployOsMap[s.ip]) deployOsMap[s.ip] = s.os || 'debian'; if(!batchStartPort[s.ip]) batchStartPort[s.ip] = ''; if(!batchUser[s.ip]) batchUser[s.ip] = 'admin';
                             if (s.egress_mode === 'socks5' || s.socks5_addr) { s._socks5_addr = s.socks5_addr || ''; s._socks5_port = s.socks5_port || 1080; s._socks5_user = s.socks5_user || ''; s._socks5_pass = s.socks5_pass || ''; }
                         });
                     if (activeTab.value === 'nodes') renderXUICharts();
@@ -1581,7 +1581,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 const addGroup = async () => { const name = newGroupName.value.trim(); if (!name) return alert('请输入用户组名称'); await fetchApi('/api/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) }); newGroupName.value = ''; refreshData(); };
                 const saveGroup = async group => { const draft = groupDraft(group); const resources = draft.resources.map(value => { const separator = value.indexOf(':'); return { type: value.slice(0, separator), id: value.slice(separator + 1) }; }).filter(resource => resource.type && resource.id); await fetchApi('/api/groups', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: group.id, members: draft.members, resources }) }); refreshData(); };
                 const deleteGroup = async group => { if (confirm(`确定删除用户组“${group.name}”？不会删除其中的用户或节点。`)) { await fetchApi(`/api/groups?id=${encodeURIComponent(group.id)}`, { method: 'DELETE' }); delete groupDrafts[group.id]; refreshData(); } };
-                const addVps = async () => { if(!newVps.value.ip || !newVps.value.name) return alert('请输入名称和IP'); deployOsMap[newVps.value.ip] = newVps.value.os; saveOsMap(); await fetchApi('/api/vps', { method: 'POST', body: JSON.stringify({ ip: newVps.value.ip, name: newVps.value.name }) }); newVps.value = { name: '', ip: '', os: 'debian' }; refreshData(); fetchProbeData();};
+                const addVps = async () => { if(!newVps.value.ip || !newVps.value.name) return alert('请输入名称和IP'); deployOsMap[newVps.value.ip] = newVps.value.os; saveOsMap(); await fetchApi('/api/vps', { method: 'POST', body: JSON.stringify({ ip: newVps.value.ip, name: newVps.value.name, os: newVps.value.os }) }); newVps.value = { name: '', ip: '', os: 'debian' }; refreshData(); fetchProbeData();};
 
                 // 📤 导出 VPS 列表（JSON 文件下载，POST + 文本响应最稳）
                 const exportVps = async () => {
@@ -1611,10 +1611,12 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     const trimmed = (text || '').trim();
                     if (!trimmed) return [];
                     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-                        const parsed = JSON.parse(trimmed);
+                        let parsed;
+                        try { parsed = JSON.parse(trimmed); }
+                        catch (e) { parsed = JSON.parse(trimmed.replace(/,\s*([}\]])/g, '$1')); }
                         if (Array.isArray(parsed)) return parsed;
                         if (parsed && Array.isArray(parsed.servers)) return parsed.servers;
-                        throw new Error('JSON 需为 [{name, ip}, ...] 或 {servers: [...]}');
+                        throw new Error('JSON 需为 [{name, ip, os?}, ...] 或 {servers: [...]}');
                     }
                     const rows = [];
                     for (const line of trimmed.split(/\r?\n/)) {
@@ -1622,7 +1624,11 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                         if (!parts.length) continue;
                         const first = parts[0].toLowerCase();
                         if (first === 'name' || first === 'ip' || first === '名称' || first === 'ip地址') continue; // 表头
-                        if (parts.length >= 2) rows.push({ name: parts[0], ip: parts[1] });
+                        if (parts.length >= 2) {
+                            const row = { name: parts[0], ip: parts[1] };
+                            if (parts.length >= 3 && ['alpine', 'debian', 'ubuntu'].includes(parts[2].toLowerCase())) row.os = parts[2].toLowerCase();
+                            rows.push(row);
+                        }
                         else if (/^[0-9A-Fa-f:.]{2,64}$/.test(parts[0])) rows.push({ name: parts[0], ip: parts[0] });
                     }
                     return rows;
