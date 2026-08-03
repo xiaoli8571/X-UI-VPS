@@ -37,13 +37,15 @@ mkdir -p /opt/xui
 # ============ 清理旧完整版 agent 环境（sing-box 代理 + 旧服务 + 旧文件） ============
 echo "[probe] 清理旧代理环境（sing-box / 旧 agent / 旧配置）..."
 # 停止并移除 sing-box 代理（代理现在跑在容器里，宿主机不再需要）
-systemctl stop sing-box 2>/dev/null; systemctl disable sing-box 2>/dev/null
-rc-service sing-box stop 2>/dev/null
+# 加 timeout 防止 systemd 停止服务阻塞（最长 15 秒，失败则强制 kill）
+timeout 15 systemctl stop sing-box 2>/dev/null; timeout 5 systemctl disable sing-box 2>/dev/null
+timeout 15 rc-service sing-box stop 2>/dev/null
+systemctl kill -s KILL sing-box 2>/dev/null || true
 rm -rf /etc/sing-box
 rm -f /etc/systemd/system/sing-box.service /etc/init.d/sing-box
 # 停止旧 agent 服务（后面会用 PROBE_ONLY=1 重新安装）
-systemctl stop xui-agent 2>/dev/null; systemctl disable xui-agent 2>/dev/null
-rc-service xui-agent stop 2>/dev/null
+timeout 15 systemctl stop xui-agent 2>/dev/null; timeout 5 systemctl disable xui-agent 2>/dev/null
+timeout 15 rc-service xui-agent stop 2>/dev/null
 # 清除更新标记与旧代理组件/证书（config.json 会被覆盖重写）
 rm -f /opt/xui/.update-pending
 rm -f /opt/xui/*.pem /opt/xui/*.key /opt/xui/warp.json /opt/xui/egress-state.json \
