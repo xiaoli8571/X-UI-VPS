@@ -1591,7 +1591,7 @@ export async function onRequest(context) {
             }
         } catch(e) {}
         
-        const effectiveInterval = Math.min(300, fastMode ? Math.max(15, reportInterval) : Math.max(90, reportInterval));
+        const effectiveInterval = Math.min(300, fastMode ? Math.max(10, reportInterval) : Math.max(45, reportInterval));
         return Response.json({ success: true, fast_mode: fastMode, interval: effectiveInterval, ping_ct: pingCt, ping_cu: pingCu, ping_cm: pingCm });
      } catch (err) {
         return Response.json({ error: "REPORT_ERR: " + (err && err.message ? err.message : String(err)) }, { status: 500 });

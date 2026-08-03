@@ -390,8 +390,8 @@ def check_for_update():
 
 # Dashboard viewers receive five-second updates. While nobody is connected,
 # Durable Objects switch routine metric snapshots to a lower rate.
-REALTIME_STATUS_ACTIVE_INTERVAL = 60
-REALTIME_STATUS_IDLE_INTERVAL = 300
+REALTIME_STATUS_ACTIVE_INTERVAL = 20
+REALTIME_STATUS_IDLE_INTERVAL = 120
 realtime_status_interval = REALTIME_STATUS_ACTIVE_INTERVAL
 global_interval = REALTIME_STATUS_ACTIVE_INTERVAL
 fast_mode = False
@@ -402,7 +402,7 @@ last_http_report = 0
 # Keep D1's fallback snapshot fresh for dashboard reloads and reconnects.
 # WebSocket remains the primary five-second live channel. HTTP fallback is
 # throttled to 5 minutes so idle agents don't burn Workers quota.
-REALTIME_HTTP_INTERVAL = 300
+REALTIME_HTTP_INTERVAL = 90
 
 # 🌟 增加全局 Ping 状态缓存锁，防止在非测速轮次上传 '0' 导致前端图表归零
 last_pings = {"ct": "0", "cu": "0", "cm": "0", "bd": "0"}

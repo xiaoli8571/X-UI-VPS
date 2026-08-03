@@ -29,13 +29,22 @@ if (!globalThis.caches) {
     globalThis.caches = {
         default: {
             async match(req) {
-                const hit = cacheStore.get(cacheKeyOf(req));
-                return hit ? new Response(hit.body, { status: 200, headers: hit.headers }) : undefined;
+                const key = cacheKeyOf(req);
+                const hit = cacheStore.get(key);
+                if (!hit) return undefined;
+                // 按 Cache-Control max-age 检查过期（CF Cache API 语义）
+                const cc = String(hit.headers && hit.headers['cache-control'] || '');
+                const m = cc.match(/max-age=(\d+)/);
+                if (m && Date.now() - hit.ts >= Number(m[1]) * 1000) {
+                    cacheStore.delete(key);
+                    return undefined;
+                }
+                return new Response(hit.body, { status: 200, headers: hit.headers });
             },
             async put(req, res) {
                 try {
                     const body = await res.clone().text();
-                    cacheStore.set(cacheKeyOf(req), { body, headers: Object.fromEntries(res.headers.entries()) });
+                    cacheStore.set(cacheKeyOf(req), { body, headers: Object.fromEntries(res.headers.entries()), ts: Date.now() });
                     if (cacheStore.size > 200) { const first = cacheStore.keys().next().value; if (first) cacheStore.delete(first); }
                 } catch (e) {}
             },
