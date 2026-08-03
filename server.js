@@ -20,6 +20,31 @@ const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '0.0.0.0';
 
 // ---------------------------------------------------------------------------
+// Cloudflare Cache API 兼容层（探针接口 /api/probe/public 使用 caches.default）
+// Node.js 无 caches 全局对象，这里用内存 Map 提供 match/put/delete。
+// ---------------------------------------------------------------------------
+if (!globalThis.caches) {
+    const cacheStore = new Map();
+    const cacheKeyOf = (req) => (typeof req === 'string' ? req : (req && req.url) || String(req));
+    globalThis.caches = {
+        default: {
+            async match(req) {
+                const hit = cacheStore.get(cacheKeyOf(req));
+                return hit ? new Response(hit.body, { status: 200, headers: hit.headers }) : undefined;
+            },
+            async put(req, res) {
+                try {
+                    const body = await res.clone().text();
+                    cacheStore.set(cacheKeyOf(req), { body, headers: Object.fromEntries(res.headers.entries()) });
+                    if (cacheStore.size > 200) { const first = cacheStore.keys().next().value; if (first) cacheStore.delete(first); }
+                } catch (e) {}
+            },
+            async delete(req) { return cacheStore.delete(cacheKeyOf(req)); },
+        },
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Database (D1-compatible over SQLite)
 // ---------------------------------------------------------------------------
 const db = openDatabase(DB_PATH);
