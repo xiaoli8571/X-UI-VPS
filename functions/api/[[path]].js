@@ -1550,7 +1550,15 @@ export async function onRequest(context) {
                 const trafficJson = JSON.stringify(traffic.map(nt => ({ id: nt.id, bytes: Number(nt.delta_bytes) })));
                 const deltaCte = `WITH deltas(id, bytes) AS (SELECT json_extract(value, '$.id'), CAST(json_extract(value, '$.bytes') AS INTEGER) FROM json_each(?))`;
                 stmts.push(db.prepare(`${deltaCte} UPDATE nodes SET traffic_used = traffic_used + COALESCE((SELECT SUM(bytes) FROM deltas WHERE deltas.id = nodes.id), 0) WHERE vps_ip = ? AND id IN (SELECT id FROM deltas) AND EXISTS (SELECT 1 FROM report_receipts WHERE report_id = ? AND applied = 0)`).bind(trafficJson, vpsIp, data.report_id));
-                stmts.push(db.prepare(`${deltaCte}, user_deltas(username, bytes) AS (SELECT n.username, SUM(d.bytes) FROM deltas d JOIN nodes n ON n.id = d.id AND n.vps_ip = ? GROUP BY n.username) UPDATE users SET traffic_used = traffic_used + COALESCE((SELECT bytes FROM user_deltas WHERE user_deltas.username = users.username), 0) WHERE username IN (SELECT username FROM user_deltas) AND EXISTS (SELECT 1 FROM report_receipts WHERE report_id = ? AND applied = 0)`).bind(trafficJson, vpsIp, data.report_id));
+                stmts.push(db.prepare(`${deltaCte}, user_deltas(username, bytes) AS (
+                    SELECT n.username, SUM(d.bytes) FROM deltas d JOIN nodes n ON n.id = d.id AND n.vps_ip = ? GROUP BY n.username
+                    UNION ALL
+                    SELECT gm.username, d.bytes FROM deltas d
+                    JOIN nodes n ON n.id = d.id AND n.vps_ip = ?
+                    LEFT JOIN user_group_resources gr ON (gr.resource_type = 'node' AND gr.resource_id = n.id) OR (gr.resource_type = 'vps' AND gr.resource_id = n.vps_ip)
+                    LEFT JOIN user_group_members gm ON gm.group_id = gr.group_id
+                    WHERE (n.username = 'admin' OR n.username NOT IN (SELECT username FROM users)) AND gm.username IS NOT NULL
+                ) UPDATE users SET traffic_used = traffic_used + COALESCE((SELECT SUM(bytes) FROM user_deltas WHERE user_deltas.username = users.username), 0) WHERE username IN (SELECT DISTINCT username FROM user_deltas) AND EXISTS (SELECT 1 FROM report_receipts WHERE report_id = ? AND applied = 0)`).bind(trafficJson, vpsIp, vpsIp, data.report_id));
                 totalDelta = data.total_delta;
             }
         }

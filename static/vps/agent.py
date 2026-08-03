@@ -771,6 +771,13 @@ def build_singbox_config(nodes, proxy_cfg=None, peers=None, mesh=None, socks5_ou
     global proxy_port_conflict
     singbox_config = {
         "log": {"level": "warn"},
+        # 启用 Clash API（127.0.0.1:9090），提供 /stats/inbound/{tag} 流量统计
+        "experimental": {
+            "clash_api": {
+                "external_controller": "127.0.0.1:9090",
+                "secret": ""
+            }
+        },
         "inbounds": [],
         "outbounds": [{"type": "direct", "tag": "direct-out"}],
         "route": {"rules": []}
