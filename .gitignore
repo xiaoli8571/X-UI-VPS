@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# local data (SQLite database)
+data/
+
+# env
+.env
+
+# logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# temp
+*.tmp

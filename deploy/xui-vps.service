@@ -1,0 +1,21 @@
+[Unit]
+Description=XUI VPS Panel (self-hosted)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/xui-vps
+Environment=PORT=18787
+Environment=NODE_ENV=production
+# 安装时务必修改 ADMIN_PASSWORD（可执行 bash xui-panel.sh password '新密码'）
+Environment=ADMIN_USERNAME=admin
+Environment=ADMIN_PASSWORD=CHANGE_ME
+ExecStart=/usr/local/bin/node server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

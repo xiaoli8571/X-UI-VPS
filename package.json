@@ -1,0 +1,19 @@
+{
+  "name": "xui-vps",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted XUI panel server (VPS / Docker) — Cloudflare Worker API on Node.js + SQLite",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "deploy": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "tweetnacl": "^1.0.3",
+    "ssh2": "^1.16.0",
+    "ws": "^8.18.0"
+  }
+}

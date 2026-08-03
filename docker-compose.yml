@@ -1,0 +1,25 @@
+services:
+  xui-vps:
+    image: xui-vps:latest
+    build:
+      context: .
+    container_name: xui-vps
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      # 从 .env 文件读取（或直接在这里写环境变量）
+      - PORT=8787
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - PROXY_USER=${PROXY_USER:-}
+      - PROXY_PASS=${PROXY_PASS:-}
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN:-}
+      - TG_CHAT_ID=${TG_CHAT_ID:-}
+      - TG_WEBHOOK_SECRET=${TG_WEBHOOK_SECRET:-}
+      - PAGES_ORIGIN=${PAGES_ORIGIN:-}
+    volumes:
+      - xui-data:/data
+
+volumes:
+  xui-data:

@@ -1,0 +1,249 @@
+// server.js — Self-hosted XUI server (VPS / Docker)
+// Runs the Cloudflare Worker API on Node: /api/* -> onRequest(),
+// static files -> static/, cron -> onRequestScheduled(), no Durable Objects
+// (agents fall back to HTTP polling, the dashboard uses its polling fallback).
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { Client } from 'ssh2';
+import { WebSocketServer } from 'ws';
+import { openDatabase } from './db.js';
+import { onRequest, onRequestScheduled } from './functions/api/[[path]].js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STATIC_DIR = path.join(__dirname, 'static');
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'data', 'xui.db');
+const PORT = Number(process.env.PORT || 8787);
+const HOST = process.env.HOST || '0.0.0.0';
+
+// ---------------------------------------------------------------------------
+// Database (D1-compatible over SQLite)
+// ---------------------------------------------------------------------------
+const db = openDatabase(DB_PATH);
+
+// ---------------------------------------------------------------------------
+// ASSETS adapter — serves files from static/ (used by /api/agent_update and
+// the dashboard frontend). Mimics Workers Assets fetch().
+// ---------------------------------------------------------------------------
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+  '.sh': 'text/plain; charset=utf-8',
+  '.py': 'text/plain; charset=utf-8',
+  '.yaml': 'text/plain; charset=utf-8',
+  '.yml': 'text/plain; charset=utf-8',
+  '.woff2': 'font/woff2',
+};
+const assetsAdapter = {
+  async fetch(request) {
+    const url = new URL(request.url);
+    let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    if (!rel) rel = 'index.html';
+    // Path traversal guard
+    const filePath = path.resolve(STATIC_DIR, rel);
+    if (filePath !== path.join(STATIC_DIR, 'index.html') && !filePath.startsWith(STATIC_DIR + path.sep)) {
+      return new Response('Not found', { status: 404 });
+    }
+    try {
+      const data = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      return new Response(data, {
+        headers: {
+          'Content-Type': MIME[ext] || 'application/octet-stream',
+          'Cache-Control': 'no-cache',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    } catch (e) {
+      return new Response('Not found', { status: 404 });
+    }
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Environment (what the Worker would get from Cloudflare bindings)
+// ---------------------------------------------------------------------------
+const env = {
+  DB: db,
+  ASSETS: assetsAdapter,
+  ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin',
+  PROXY_USER: process.env.PROXY_USER || '',
+  PROXY_PASS: process.env.PROXY_PASS || '',
+  TG_BOT_TOKEN: process.env.TG_BOT_TOKEN || '',
+  TG_CHAT_ID: process.env.TG_CHAT_ID || '',
+  TG_WEBHOOK_SECRET: process.env.TG_WEBHOOK_SECRET || '',
+  CRON_SECRET: process.env.CRON_SECRET || '',
+  PAGES_ORIGIN: process.env.PAGES_ORIGIN || '',
+  // Leave empty: notifyRealtimeVps() becomes a no-op and agents use HTTP polling.
+  REALTIME_URL: process.env.REALTIME_URL || '',
+  ...(process.env.PROXY_CTRL_URL
+    ? {
+        PROXY_CTRL_URL: process.env.PROXY_CTRL_URL,
+        PROXY_CTRL_USER: process.env.PROXY_CTRL_USER || '',
+        PROXY_CTRL_PASS: process.env.PROXY_CTRL_PASS || '',
+        PROXY_CTRL_TOKEN: process.env.PROXY_CTRL_TOKEN || '',
+      }
+    : {}),
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function apiParams(pathname) {
+  const segments = pathname.slice('/api/'.length).split('/').filter(Boolean);
+  return { path: segments };
+}
+
+function nodeRequestToWebRequest(req) {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (v !== undefined) headers[k] = v;
+  }
+  let body;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    body = new Promise((resolve, reject) => {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => resolve(Buffer.concat(chunks)));
+      req.on('error', reject);
+    });
+  }
+  return { url, headers, body };
+}
+
+async function sendWebResponse(res, response) {
+  res.statusCode = response.status;
+  for (const [k, v] of response.headers.entries()) {
+    if (k.toLowerCase() === 'content-length') continue; // let Node compute
+    res.setHeader(k, v);
+  }
+  if (response.body) {
+    Readable.fromWeb(response.body).pipe(res);
+  } else {
+    res.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HTTP server
+// ---------------------------------------------------------------------------
+const server = http.createServer(async (req, res) => {
+  try {
+    const { url, headers, body } = nodeRequestToWebRequest(req);
+    const request = new Request(url, {
+      method: req.method,
+      headers,
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? await body : undefined,
+    });
+
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+      const response = await onRequest({
+        request,
+        env,
+        params: apiParams(url.pathname),
+        waitUntil: () => {},
+      });
+      return await sendWebResponse(res, response);
+    }
+
+    if (url.pathname === '/health') {
+      const response = new Response(JSON.stringify({ ok: true, service: 'xui-vps', version: 1 }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+      return await sendWebResponse(res, response);
+    }
+
+    // Everything else: static assets
+    const response = await assetsAdapter.fetch(request);
+    return await sendWebResponse(res, response);
+  } catch (e) {
+    console.error('[xui-vps] request error:', e);
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end('Internal Server Error: ' + (e.message || e));
+    } else {
+      res.end();
+    }
+  }
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`[xui-vps] listening on http://${HOST}:${PORT}`);
+  console.log(`[xui-vps] database: ${DB_PATH}`);
+  console.log(`[xui-vps] static:   ${STATIC_DIR}`);
+});
+
+// ---------------------------------------------------------------------------
+// WebSocket — WebSSH 隧道 (前端 xterm.js <-> ssh2)
+// URL: /ssh/ws?ip=<VPS_IP>&token=<登录token>
+// ---------------------------------------------------------------------------
+const sha256 = (s) => createHash('sha256').update(String(s)).digest('hex');
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url, 'http://localhost');
+  if (url.pathname !== '/ssh/ws') { socket.destroy(); return; }
+  wss.handleUpgrade(req, socket, head, (ws) => handleSshWebSocket(ws, url));
+});
+
+async function handleSshWebSocket(ws, url) {
+  const ip = url.searchParams.get('ip') || '';
+  const token = url.searchParams.get('token') || '';
+  try {
+    // 校验登录会话
+    const session = await db.prepare('SELECT username, expires_at FROM auth_sessions WHERE token_hash = ?').bind(sha256(token)).first();
+    if (!session || Number(session.expires_at) < Date.now()) { ws.close(4001, 'Unauthorized'); return; }
+    const row = await db.prepare('SELECT ssh_user, ssh_pass, ssh_port FROM servers WHERE ip = ?').bind(ip).first();
+    if (!row || !row.ssh_pass) { ws.close(4002, '未配置 SSH 凭据，请先在服务器卡片填写'); return; }
+    const sshPort = Number(row.ssh_port) || 22;
+    const conn = new Client();
+    conn.on('ready', () => {
+      conn.shell({ term: 'xterm-256color', cols: 120, rows: 32 }, (err, stream) => {
+        if (err) { ws.close(4003, 'Shell error: ' + err.message); return; }
+        stream.on('data', (d) => { try { ws.send(d.toString('utf8')); } catch (_) {} });
+        stream.on('close', () => { try { ws.close(); } catch (_) {} });
+        stream.on('error', () => { try { ws.close(); } catch (_) {} });
+        ws.on('message', (m) => { stream.write(String(m)); });
+        ws.on('close', () => { stream.end(); conn.end(); });
+        ws.on('error', () => { stream.end(); conn.end(); });
+      });
+    });
+    conn.on('error', (e) => { try { ws.close(4004, 'SSH: ' + (e.message || '连接失败')); } catch (_) {} });
+    conn.connect({ host: ip, port: sshPort, username: row.ssh_user || 'root', password: row.ssh_pass, readyTimeout: 15000 });
+  } catch (e) {
+    try { ws.close(4000, 'Server error'); } catch (_) {}
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cron — offline check every 15 minutes (mimics Worker Cron */15 * * * *)
+// ---------------------------------------------------------------------------
+const CRON_MS = 15 * 60 * 1000;
+setInterval(() => {
+  onRequestScheduled({ scheduledTime: Date.now(), cron: '*/15 * * * *', env, waitUntil: () => {} })
+    .catch(e => console.error('[xui-vps] cron offline check failed:', e));
+}, CRON_MS).unref?.();
+
+// Graceful shutdown
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    console.log(`[xui-vps] ${sig} received, shutting down`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 3000).unref();
+  });
+}
