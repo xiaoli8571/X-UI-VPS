@@ -418,6 +418,11 @@ pending_report_id = _pending.get("report_id")
 pending_report_bytes = _pending.get("report_bytes")
 pending_node_traffic = _pending.get("node_traffic")
 pending_report_payload = _pending.get("payload")
+# 防呆：恢复的上报 payload 若 ip 与当前配置不一致（如宿主机换 IP / 从完整版切探针），
+# 丢弃旧 payload，避免用旧 IP 上报导致 401
+if pending_report_payload and pending_report_payload.get("ip") != VPS_IP:
+    pending_report_payload = None
+    pending_report_id = None
 egress_retry_timer = None
 egress_retry_lock = threading.Lock()
 

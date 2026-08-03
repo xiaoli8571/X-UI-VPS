@@ -46,6 +46,10 @@ rm -f /etc/systemd/system/sing-box.service /etc/init.d/sing-box
 # 停止旧 agent 服务（后面会用 PROBE_ONLY=1 重新安装）
 timeout 15 systemctl stop xui-agent 2>/dev/null; timeout 5 systemctl disable xui-agent 2>/dev/null
 timeout 15 rc-service xui-agent stop 2>/dev/null
+# 杀掉完整版 agent 的残留组件进程（lite_manager / proxy / realtime，可能用旧 IP 继续上报）
+pkill -f lite_manager.py 2>/dev/null; pkill -f proxy_server.py 2>/dev/null; pkill -f realtime_client.py 2>/dev/null
+sleep 1; pkill -9 -f lite_manager.py 2>/dev/null; pkill -9 -f proxy_server.py 2>/dev/null; pkill -9 -f realtime_client.py 2>/dev/null
+rm -rf /opt/proxy_lite
 # 清除更新标记与旧代理组件/证书（config.json 会被覆盖重写）
 rm -f /opt/xui/.update-pending
 rm -f /opt/xui/*.pem /opt/xui/*.key /opt/xui/warp.json /opt/xui/egress-state.json \
