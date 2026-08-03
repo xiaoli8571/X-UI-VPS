@@ -33,6 +33,8 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 mkdir -p /opt/xui
+# 清除历史更新标记（探针模式不参与 sing-box readiness 检查）
+rm -f /opt/xui/.update-pending
 
 # 下载探针 agent（agent.py 探针模式 = 只上报状态）
 echo "[probe] 下载 agent.py..."

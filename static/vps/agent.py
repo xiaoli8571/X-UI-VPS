@@ -1430,11 +1430,16 @@ if __name__ == "__main__":
     time.sleep(2)
     initial_nodes = fetch_and_apply_configs()
     if os.path.exists("/opt/xui/.update-pending"):
-        if initial_nodes is None or not _singbox_service_healthy() or not report_status(list(initial_nodes), [], force_http=True):
+        if probe_only:
+            # 探针模式无 sing-box，不参与更新 readiness 检查
+            try: os.remove("/opt/xui/.update-pending")
+            except FileNotFoundError: pass
+        elif initial_nodes is None or not _singbox_service_healthy() or not report_status(list(initial_nodes), [], force_http=True):
             print("[agent] updated version failed readiness checks", flush=True)
             raise SystemExit(1)
-        try: os.remove("/opt/xui/.update-pending")
-        except FileNotFoundError: pass
+        else:
+            try: os.remove("/opt/xui/.update-pending")
+            except FileNotFoundError: pass
     if initial_nodes is not None: heartbeat_state["nodes"] = initial_nodes
     threading.Thread(target=heartbeat_loop, name="xui-heartbeat", daemon=True).start()
     while True:
