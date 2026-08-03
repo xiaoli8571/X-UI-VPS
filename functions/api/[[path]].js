@@ -765,6 +765,115 @@ async function verifyAgent(authHeader, ip, db, env) {
     return false;
 }
 
+// 解析分享节点链接（vless:// vmess:// trojan:// hysteria2:// tuic:// ss:// ssr://）
+// 返回 { protocol, name, address, port, uuid, password, sni, public_key, short_id, flow, network, host, path, extra }
+function parseNodeLink(link) {
+    const raw = String(link || '').trim();
+    if (!raw) return null;
+    const hashIdx = raw.indexOf('#');
+    const name = hashIdx >= 0 ? decodeURIComponent(raw.slice(hashIdx + 1)).replace(/\s+/g, ' ').trim().slice(0, 100) : '';
+    const core = hashIdx >= 0 ? raw.slice(0, hashIdx) : raw;
+    const b64decode = (s) => { try { return atob(String(s).replace(/-/g, '+').replace(/_/g, '/')); } catch (e) { return ''; } };
+    let m;
+    // vless://uuid@host:port?query#name
+    if ((m = core.match(/^vless:\/\/([^@\s]+)@([^:\/\s]+):(\d+)(\?[^#]*)?$/i))) {
+        const [, uid, host, port, query] = m;
+        const p = new URLSearchParams(query || '');
+        const node = { protocol: 'VLESS', name: name || `VLESS_${host}_${port}`, address: host, port: Number(port), uuid: decodeURIComponent(uid) };
+        if (p.get('sni')) node.sni = p.get('sni');
+        if (p.get('pbk')) node.public_key = p.get('pbk');
+        if (p.get('sid')) node.short_id = p.get('sid');
+        if (p.get('flow')) node.flow = p.get('flow');
+        if (p.get('type')) node.network = p.get('type');
+        if (p.get('host')) node.host = p.get('host');
+        if (p.get('path')) node.path = p.get('path');
+        const extras = [];
+        if (p.get('fp')) extras.push(`fp=${p.get('fp')}`);
+        if (p.get('encryption')) extras.push(`encryption=${p.get('encryption')}`);
+        if (extras.length) node.extra = extras.join('&');
+        return node;
+    }
+    // trojan://password@host:port?query#name
+    if ((m = core.match(/^trojan:\/\/([^@\s]+)@([^:\/\s]+):(\d+)(\?[^#]*)?$/i))) {
+        const [, pass, host, port, query] = m;
+        const p = new URLSearchParams(query || '');
+        const node = { protocol: 'Trojan', name: name || `Trojan_${host}_${port}`, address: host, port: Number(port), password: decodeURIComponent(pass) };
+        if (p.get('sni')) node.sni = p.get('sni');
+        if (p.get('type')) node.network = p.get('type');
+        if (p.get('host')) node.host = p.get('host');
+        if (p.get('path')) node.path = p.get('path');
+        return node;
+    }
+    // hysteria2:// 或 hy2://password@host:port?query#name
+    if ((m = core.match(/^(?:hysteria2|hy2):\/\/([^@\s]*)@([^:\/\s]+):(\d+)(\?[^#]*)?$/i))) {
+        const [, pass, host, port, query] = m;
+        const p = new URLSearchParams(query || '');
+        const node = { protocol: 'Hysteria2', name: name || `Hysteria2_${host}_${port}`, address: host, port: Number(port), password: decodeURIComponent(pass || '') };
+        if (p.get('sni')) node.sni = p.get('sni');
+        if (p.get('obfs-password')) node.extra = `obfs-password=${p.get('obfs-password')}`;
+        return node;
+    }
+    // tuic://uuid:password@host:port?query#name
+    if ((m = core.match(/^tuic:\/\/([^@\s]+)@([^:\/\s]+):(\d+)(\?[^#]*)?$/i))) {
+        const [, cred, host, port, query] = m;
+        const p = new URLSearchParams(query || '');
+        const [uuid, pass] = cred.split(':');
+        const node = { protocol: 'TUIC', name: name || `TUIC_${host}_${port}`, address: host, port: Number(port), uuid: decodeURIComponent(uuid || ''), password: decodeURIComponent(pass || '') };
+        if (p.get('sni')) node.sni = p.get('sni');
+        return node;
+    }
+    // vmess://  (base64 JSON 或明文 uuid@host:port)
+    if (core.startsWith('vmess://')) {
+        const rest = core.slice('vmess://'.length);
+        if (rest.includes('@')) {
+            const v = parseNodeLink(`vless://${rest}`);
+            if (v) { v.protocol = 'VMess'; return v; }
+        }
+        const decoded = b64decode(rest.split('#')[0]);
+        try {
+            const j = JSON.parse(decoded);
+            const node = { protocol: 'VMess', name: name || j.ps || `VMess_${j.add}_${j.port}`, address: j.add, port: Number(j.port), uuid: j.id };
+            if (j.net) node.network = j.net;
+            if (j.host) node.host = j.host;
+            if (j.path) node.path = j.path;
+            if (j.sni) node.sni = j.sni;
+            const extras = [];
+            if (j.type) extras.push(`type=${j.type}`);
+            if (j.tls) extras.push(`tls=${j.tls}`);
+            if (j.fp) extras.push(`fp=${j.fp}`);
+            if (extras.length) node.extra = extras.join('&');
+            return node;
+        } catch (e) { return null; }
+    }
+    // ss://method:password@host:port 或 ss://base64(method:password@host:port)
+    if (core.startsWith('ss://')) {
+        const rest = core.slice('ss://'.length).split('#')[0];
+        if ((m = rest.match(/^([^@\s]+)@([^:\/\s]+):(\d+)$/))) {
+            const [, cred, host, port] = m;
+            let method = '', pass = '';
+            if (cred.includes(':')) { const sp = cred.split(':'); method = sp[0]; pass = sp.slice(1).join(':'); }
+            else { const d = b64decode(cred); const sp = d.split(':'); if (sp.length >= 2) { method = sp[0]; pass = sp.slice(1).join(':'); } }
+            if (method && host) return { protocol: 'SS', name: name || `SS_${host}_${port}`, address: host, port: Number(port), uuid: method, password: decodeURIComponent(pass || '') };
+        }
+        try {
+            const d = b64decode(rest);
+            const mm = d.match(/^([^:]+):([^@]+)@([^:]+):(\d+)$/);
+            if (mm) return { protocol: 'SS', name: name || `SS_${mm[3]}_${mm[4]}`, address: mm[3], port: Number(mm[4]), uuid: mm[1], password: decodeURIComponent(mm[2]) };
+        } catch (e) {}
+        return null;
+    }
+    // ssr://base64
+    if (core.startsWith('ssr://')) {
+        const d = b64decode(core.slice('ssr://'.length));
+        const parts = d.split('/?')[0].split(':');
+        if (parts.length >= 6) {
+            return { protocol: 'SSR', name: name || `SSR_${parts[0]}_${parts[1]}`, address: parts[0], port: Number(parts[1]), uuid: parts[3], password: b64decode(parts[5]) };
+        }
+        return null;
+    }
+    return null;
+}
+
 // ==============================================
 // 探针纯净 API 子系统处理
 // ==============================================
@@ -2034,18 +2143,38 @@ rules:
                 if (method === "POST") {
                     const n = await request.json().catch(() => ({}));
                     const protocols = ['VLESS','VMess','Hysteria2','TUIC','Trojan','H2-Reality','gRPC-Reality','AnyTLS','Naive','Socks5','SS','SSR','XTLS-Reality','Reality'];
-                    if (!protocols.includes(n.protocol)) return Response.json({ error: '不支持的协议类型' }, { status: 400 });
-                    const address = String(n.address || '').trim();
-                    if (!/^[0-9A-Fa-f:.]{2,128}$/.test(address)) return Response.json({ error: '无效的服务器地址' }, { status: 400 });
-                    const port = Number(n.port);
-                    if (!Number.isInteger(port) || port < 1 || port > 65535) return Response.json({ error: '无效的端口' }, { status: 400 });
-                    if ((n.protocol === 'VLESS' || n.protocol.includes('Reality') || n.protocol === 'Hysteria2' || n.protocol === 'TUIC' || n.protocol === 'VMess') && !String(n.uuid || '').trim()) return Response.json({ error: `${n.protocol} 需要填写 UUID` }, { status: 400 });
-                    const id = crypto.randomUUID();
-                    await db.prepare("INSERT INTO third_party_nodes (id, subscription_id, name, protocol, address, port, uuid, password, sni, public_key, short_id, flow, network, host, path, extra, enable, created_at) VALUES (?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)")
-                        .bind(id, String(n.name || `${n.protocol}_${port}`).slice(0, 100), n.protocol, address, port,
-                              n.uuid || '', n.password || '', n.sni || '', n.public_key || '', n.short_id || '',
-                              n.flow || '', n.network || '', n.host || '', n.path || '', n.extra || '', now).run();
-                    return Response.json({ success: true, id });
+                    // 支持直接粘贴分享链接（vless:// vmess:// trojan:// hy2:// ss:// ssr:// ...）批量解析
+                    let parsedList = [];
+                    if (n.links) {
+                        const linkArr = Array.isArray(n.links) ? n.links : String(n.links).split(/\r?\n/);
+                        for (const l of linkArr) { const node = parseNodeLink(l); if (node) parsedList.push(node); }
+                        if (!parsedList.length) return Response.json({ error: '无法解析任何节点链接（支持 vless:// vmess:// trojan:// hysteria2:// hy2:// tuic:// ss:// ssr://）' }, { status: 400 });
+                    } else if (n.link) {
+                        const node = parseNodeLink(n.link);
+                        if (!node) return Response.json({ error: '无法解析该节点链接（支持 vless:// vmess:// trojan:// hysteria2:// hy2:// tuic:// ss:// ssr://）' }, { status: 400 });
+                        parsedList.push(node);
+                    } else if (n.protocol) {
+                        parsedList.push(n);
+                    } else {
+                        return Response.json({ error: '请填写节点信息或粘贴分享链接' }, { status: 400 });
+                    }
+                    const inserted = [];
+                    const now = Date.now();
+                    for (const node of parsedList) {
+                        if (!protocols.includes(node.protocol)) continue;
+                        const address = String(node.address || '').trim();
+                        if (!/^[0-9A-Za-z\-._:]{2,128}$/.test(address)) continue;
+                        const port = Number(node.port);
+                        if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
+                        const id = crypto.randomUUID();
+                        await db.prepare("INSERT INTO third_party_nodes (id, subscription_id, name, protocol, address, port, uuid, password, sni, public_key, short_id, flow, network, host, path, extra, enable, created_at) VALUES (?, 'manual', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)")
+                            .bind(id, String(node.name || `${node.protocol}_${port}`).slice(0, 100), node.protocol, address, port,
+                                  node.uuid || '', node.password || '', node.sni || '', node.public_key || '', node.short_id || '',
+                                  node.flow || '', node.network || '', node.host || '', node.path || '', node.extra || '', now).run();
+                        inserted.push(id);
+                    }
+                    if (!inserted.length) return Response.json({ error: '没有可导入的节点（协议或地址无效）' }, { status: 400 });
+                    return Response.json({ success: true, imported: inserted.length, ids: inserted });
                 }
                 if (method === "GET") {
                     const { results } = await db.prepare("SELECT * FROM third_party_nodes WHERE subscription_id = 'manual' ORDER BY created_at DESC").all();

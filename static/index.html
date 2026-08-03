@@ -856,8 +856,13 @@
 
                 <!-- 🖊️ 手动添加第三方节点（融合进统一订阅） -->
                 <div class="bg-white/60 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] border border-white shadow-xl shadow-slate-200/40">
-                    <h3 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">🖊️ 手动添加节点</h3>
-                    <p class="text-xs text-slate-500 mb-4 font-medium">单独添加常见协议节点（VLESS / VMess / Trojan / Hysteria2 / AnyTLS / SS 等），自动融合进统一订阅与 Clash 订阅。</p>
+                    <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">🖊️ 手动添加节点</h3>
+                    <p class="text-xs text-slate-500 mb-4 font-medium">直接粘贴分享链接自动解析（vless:// vmess:// trojan:// hysteria2:// hy2:// tuic:// ss:// ssr://），每行一条；也可手动填写下方表单。自动融合进统一订阅。</p>
+                    <div class="bg-indigo-50/60 border border-indigo-100 p-4 rounded-2xl mb-4">
+                        <label class="block text-xs font-bold text-indigo-600 mb-2">📋 粘贴节点链接批量导入</label>
+                        <textarea v-model="manualLinkText" rows="4" placeholder="vless://uuid@host:443?security=reality&sni=example.com&pbk=...#节点名称" class="w-full bg-white/70 border border-indigo-100 p-3 rounded-xl text-sm font-mono"></textarea>
+                        <button @click="addManualLinks" class="mt-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-sm" :disabled="!manualLinkText.trim()">🚀 解析并添加<span v-if="manualLinkLines > 1">（{{ manualLinkLines }} 条）</span></button>
+                    </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
                         <div><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">节点名称</label><input v-model="newManualNode.name" placeholder="例如: 我的节点" class="w-full bg-white/50 border border-white p-2.5 rounded-xl text-sm"></div>
                         <div><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">协议</label><select v-model="newManualNode.protocol" class="w-full bg-white/50 border border-white p-2.5 rounded-xl text-sm outline-none"><option v-for="p in manualProtocolOptions" :value="p">{{ p }}</option></select></div>
@@ -1835,6 +1840,16 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 const manualProtocolOptions = ['VLESS','VMess','Hysteria2','TUIC','Trojan','H2-Reality','gRPC-Reality','AnyTLS','Naive','SS','SSR','Socks5'];
                 const newManualNode = ref({ protocol: 'VLESS', name: '', address: '', port: 443, uuid: '', sni: '', network: '', path: '', host: '', public_key: '', short_id: '', flow: '' });
                 const manualNodes = ref([]);
+                const manualLinkText = ref('');
+                const manualLinkLines = computed(() => manualLinkText.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean).length);
+                const addManualLinks = async () => {
+                    const links = manualLinkText.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                    if (!links.length) return;
+                    const res = await fetchApi('/api/thirdparty/nodes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ links }) });
+                    const r = await res.json().catch(() => ({}));
+                    if (r.imported) { alert(`✅ 已解析并添加 ${r.imported} 个节点`); manualLinkText.value = ''; loadManualNodes(); }
+                    else alert('解析失败: ' + (r.error || '无法识别这些链接'));
+                };
                 const loadManualNodes = async () => {
                     try { const res = await fetchApi('/api/thirdparty/nodes'); manualNodes.value = await res.json(); }
                     catch(e) { manualNodes.value = []; }
@@ -2087,7 +2102,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     probeSys, publicProbeServers, filteredProbeServers, probeView, probeDetailId, probeDetail, setProbeView, openProbeDetail, probeGlobalOnline, probeGlobalOffline, probeGlobalSpeedIn, probeGlobalSpeedOut, probeGlobalNetRx, probeGlobalNetTx, filteredProbeGroups, probeCountryStats, currentFilter,
                     saveProbeSettings, saveSubscriptionProtection, adminProbeServers, probeEditModalOpen, editingProbeNode, openProbeEditModal, saveProbeEdit, deleteProbeNode, currentDomain,
                     thirdPartySubscriptions, newThirdParty, loadingThirdParty, loadThirdPartySubscriptions, addThirdPartySubscription, toggleThirdPartySubscription, deleteThirdPartySubscription,
-                    manualProtocolOptions, newManualNode, manualNodes, loadManualNodes, addManualNode, toggleManualNode, deleteManualNode,
+                    manualProtocolOptions, newManualNode, manualNodes, manualLinkText, manualLinkLines, addManualLinks, loadManualNodes, addManualNode, toggleManualNode, deleteManualNode,
                     newDomainAlert, domainAlerts, loadDomainAlerts, addDomainAlert, toggleDomainAlert, deleteDomainAlert,
                     openWebSsh, openSshSettings,
                     qrModalOpen, qrCodeImage, showQrCode, 
