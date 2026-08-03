@@ -1127,7 +1127,7 @@ async function handleProbeAPI(request, env, context, pathArray) {
     if (method === 'GET' && subPath === 'admin/data') {
         const settings = {};
         try { const { results } = await db.prepare('SELECT * FROM probe_settings').all(); if (results) results.forEach(r => settings[r.key] = r.value); } catch(e){}
-        const servers = (await db.prepare('SELECT id, name, last_updated, server_group, price, expire_date, bandwidth, traffic_limit, agent_os, is_hidden, reset_day FROM probe_servers').all()).results;
+        const servers = (await db.prepare('SELECT id, name, last_updated, server_group, price, expire_date, bandwidth, traffic_limit, agent_os, is_hidden, reset_day, country, connections, cpu, ram FROM probe_servers').all()).results;
         return Response.json({ settings, servers });
     }
     
@@ -1476,10 +1476,20 @@ export async function onRequest(context) {
         }
 
         try {
-            let countryCode = request.cf && request.cf.country ? request.cf.country : 'XX'; 
-            if (countryCode.toUpperCase() === 'TW') countryCode = 'CN';
-
             const probeServer = await db.prepare('SELECT * FROM probe_servers WHERE id = ?').bind(vpsIp).first();
+            let countryCode = probeServer && probeServer.country && probeServer.country !== 'XX' ? probeServer.country : 'XX';
+            if (!countryCode || countryCode === 'XX') {
+                // Cloudflare 版才有 request.cf；VPS 自托管版用 ip-api.com 按服务器 IP 识别国家
+                try {
+                    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 4000);
+                    const geo = await fetch(`http://ip-api.com/json/${encodeURIComponent(vpsIp)}?fields=status,countryCode`, { signal: ctrl.signal });
+                    clearTimeout(timer);
+                    const gj = await geo.json();
+                    if (gj && gj.status === 'success' && gj.countryCode) countryCode = String(gj.countryCode).toUpperCase();
+                    else console.error(`ip-api lookup no-success: ${JSON.stringify(gj)}`);
+                } catch (e) { console.error(`ip-api country lookup failed for ${vpsIp}:`, e.message); }
+            }
+            if (countryCode.toUpperCase() === 'TW') countryCode = 'CN';
             
             // --- 全新核心：基于动态 reset_day 的流量生命周期重置 ---
             const localNow = new Date(nowMs + 8 * 60 * 60000); 
@@ -1542,8 +1552,8 @@ export async function onRequest(context) {
                 history.time = updateLabels(history.time); history.last_time = nowMs;
             }
 
-            await db.prepare(`UPDATE probe_servers SET cpu=?, ram=?, disk=?, load_avg=?, uptime=?, last_updated=?, ram_total=?, net_rx=?, net_tx=?, net_in_speed=?, net_out_speed=?, os=?, cpu_info=?, arch=?, boot_time=?, ram_used=?, swap_total=?, swap_used=?, disk_total=?, disk_used=?, processes=?, tcp_conn=?, udp_conn=?, connections=?, ping_ct=?, ping_cu=?, ping_cm=?, ping_bd=?, monthly_rx=CASE WHEN last_report_id=? THEN monthly_rx ELSE ? END, monthly_tx=CASE WHEN last_report_id=? THEN monthly_tx ELSE ? END, last_rx=CASE WHEN last_report_id=? THEN last_rx ELSE ? END, last_tx=CASE WHEN last_report_id=? THEN last_tx ELSE ? END, reset_month=?, history=?, virt=?, last_report_id=? WHERE id=?`)
-                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', nowMs, data.ram_total||'0', data.net_rx||'0', data.net_tx||'0', data.net_in_speed||0, data.net_out_speed||0, data.os||'', data.cpu_info||'', data.arch||'', data.boot_time||'', data.ram_used||'0', data.swap_total||'0', data.swap_used||'0', data.disk_total||'0', data.disk_used||'0', data.processes||'0', data.tcp_conn||0, data.udp_conn||0, data.connections||0, data.ping_ct||'0', data.ping_cu||'0', data.ping_cm||'0', data.ping_bd||'0', data.report_id, monthly_rx.toString(), data.report_id, monthly_tx.toString(), data.report_id, last_rx.toString(), data.report_id, last_tx.toString(), reset_month, JSON.stringify(history), data.virt||'', data.report_id, vpsIp).run();
+            await db.prepare(`UPDATE probe_servers SET cpu=?, ram=?, disk=?, load_avg=?, uptime=?, last_updated=?, ram_total=?, net_rx=?, net_tx=?, net_in_speed=?, net_out_speed=?, os=?, cpu_info=?, arch=?, boot_time=?, ram_used=?, swap_total=?, swap_used=?, disk_total=?, disk_used=?, processes=?, tcp_conn=?, udp_conn=?, connections=?, country=?, ping_ct=?, ping_cu=?, ping_cm=?, ping_bd=?, monthly_rx=CASE WHEN last_report_id=? THEN monthly_rx ELSE ? END, monthly_tx=CASE WHEN last_report_id=? THEN monthly_tx ELSE ? END, last_rx=CASE WHEN last_report_id=? THEN last_rx ELSE ? END, last_tx=CASE WHEN last_report_id=? THEN last_tx ELSE ? END, reset_month=?, history=?, virt=?, last_report_id=? WHERE id=?`)
+                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', nowMs, data.ram_total||'0', data.net_rx||'0', data.net_tx||'0', data.net_in_speed||0, data.net_out_speed||0, data.os||'', data.cpu_info||'', data.arch||'', data.boot_time||'', data.ram_used||'0', data.swap_total||'0', data.swap_used||'0', data.disk_total||'0', data.disk_used||'0', data.processes||'0', data.tcp_conn||0, data.udp_conn||0, data.connections||0, countryCode, data.ping_ct||'0', data.ping_cu||'0', data.ping_cm||'0', data.ping_bd||'0', data.report_id, monthly_rx.toString(), data.report_id, monthly_tx.toString(), data.report_id, last_rx.toString(), data.report_id, last_tx.toString(), reset_month, JSON.stringify(history), data.virt||'', data.report_id, vpsIp).run();
 
         } catch (e) { console.error("探针数据同步失败:", e); }
 
