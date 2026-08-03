@@ -107,9 +107,21 @@ install_dependencies() {
             ;;
         apk)
             apk update || true
-            apk add --no-cache \
-                openvpn python3 py3-websocket-client curl openssl iproute2 iptables dcron psmisc \
-                || { echo "❌ apk 依赖安装失败"; exit 1; }
+            APK_TRY=0
+            while [ "$APK_TRY" -lt 3 ]; do
+                if apk add --no-cache \
+                    openvpn python3 py3-websocket-client curl openssl iproute2 iptables dcron psmisc; then
+                    break
+                fi
+                APK_TRY=$((APK_TRY+1))
+                echo "⚠️ apk add 第 ${APK_TRY} 次失败，清理缓存后重试..."
+                rm -rf /var/cache/apk/*
+                apk update || true
+            done
+            if [ "$APK_TRY" -ge 3 ] && ! command -v python3 >/dev/null 2>&1; then
+                echo "❌ apk 依赖安装失败（可能磁盘空间不足或网络异常），请手动执行: apk add --no-cache openvpn python3"
+                exit 1
+            fi
             ;;
         yum|dnf)
             $PKG_MGR install -y \
