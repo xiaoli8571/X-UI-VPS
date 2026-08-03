@@ -43,7 +43,7 @@ chmod +x /opt/xui/agent.py
 python3 - "$API_URL" "$IP" "$TOKEN" <<'PY'
 import json, sys, os
 api, ip, token = sys.argv[1], sys.argv[2], sys.argv[3]
-cfg = {"api_url": api, "ip": ip, "token": token, "probe_only": True}
+cfg = {"api_url": api + "/api/config", "report_url": api + "/api/report", "ip": ip, "token": token, "probe_only": True}
 path = "/opt/xui/config.json"
 tmp = path + ".tmp"
 with open(tmp, "w", encoding="utf-8") as f:

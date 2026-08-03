@@ -56,7 +56,8 @@ except Exception:
     exit(1)
 
 API_URL = env["api_url"]
-REPORT_URL = env["report_url"]
+# 容错：report_url 缺失时按同域推导（探针模式 config 若缺字段不崩溃）
+REPORT_URL = env.get("report_url") or API_URL
 VPS_IP = env["ip"]
 TOKEN = env["token"]
 
