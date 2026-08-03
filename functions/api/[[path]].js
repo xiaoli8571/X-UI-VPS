@@ -1907,7 +1907,8 @@ export async function onRequest(context) {
                 if (u) {
                     const download = Math.max(0, Number(u.traffic_used) || 0);
                     const total = Math.max(0, Number(u.traffic_limit) || 0);
-                    const expire = Math.max(0, Number(u.expire_time) || 0);
+                    // Clash Subscription-Userinfo 的 expire 为 Unix 秒；expire_time 存的是毫秒
+                    const expire = Math.max(0, Math.floor((Number(u.expire_time) || 0) / 1000));
                     userInfoHeader = `upload=0; download=${download}; total=${total}; expire=${expire}`;
                 }
             } catch (e) {}
