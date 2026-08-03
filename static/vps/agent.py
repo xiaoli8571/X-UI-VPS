@@ -561,6 +561,19 @@ def _read_iptables_port_bytes(port, protocol):
                 pass
     return total if found else None
 
+def get_active_connections():
+    """从 sing-box Clash API 获取当前活跃连接数（探针模式无 sing-box 返回 0）"""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:9090/connections", headers={"User-Agent": "XUI-Agent"}, method="GET")
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.loads(r.read().decode("utf-8"))
+            conns = data.get("connections") if isinstance(data, dict) else None
+            if isinstance(conns, list):
+                return len(conns)
+    except Exception:
+        pass
+    return 0
+
 def get_port_traffic(port, protocol="tcp", node_id=None):
     node_tag = f"in-{node_id}" if node_id else None
 
@@ -1095,6 +1108,7 @@ def report_status(current_nodes, argo_urls, force_http=False, allow_http=True):
     global last_reported_bytes, global_interval, fast_mode, dynamic_ping, pending_report_id, pending_report_bytes, pending_node_traffic, pending_report_payload, last_http_report
     status = get_system_status(global_interval)
     status["ip"] = VPS_IP
+    status["connections"] = get_active_connections()
     status["argo_urls"] = argo_urls
     
     deltas = []
@@ -1148,6 +1162,19 @@ def report_status(current_nodes, argo_urls, force_http=False, allow_http=True):
         _write_json_state(TRAFFIC_STATE_PATH, {"last_reported_bytes": last_reported_bytes, "pending": None})
         if resp_data and "interval" in resp_data:
             global_interval = min(max(1, int(resp_data["interval"])), 3600)
+        # 面板一键推送更新：force_update 比上次处理的时间戳新 → 立即更新组件
+        fu = resp_data.get("force_update")
+        if fu:
+            try:
+                last_done = 0
+                if os.path.exists("/opt/xui/.last-update"):
+                    last_done = int(open("/opt/xui/.last-update").read().strip() or 0)
+                if int(fu) > last_done:
+                    with open("/opt/xui/.last-update", "w") as f: f.write(str(int(fu)))
+                    print("[agent] force update requested by panel", flush=True)
+                    check_for_update()
+            except Exception as e:
+                print(f"[agent] force update handling failed: {e}", flush=True)
         new_fast_mode = bool(resp_data.get("fast_mode"))
         if new_fast_mode and not fast_mode:
             config_wakeup.set()

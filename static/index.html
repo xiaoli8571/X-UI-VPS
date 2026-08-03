@@ -454,7 +454,7 @@
                                     <button @click="deleteVps(vps.ip)" class="text-slate-300 hover:text-rose-500 font-bold transition-all">彻底移除</button>
                                 </div>
                             </div>
-                            <div class="flex justify-between text-[10px] text-slate-400 font-mono font-black mb-4 px-1 uppercase tracking-wider"><span>UP: {{ vps.uptime || 'N/A' }}</span><span>LOAD: {{ vps.load || '0.00' }}</span></div>
+                            <div class="flex justify-between text-[10px] text-slate-400 font-mono font-black mb-4 px-1 uppercase tracking-wider"><span>UP: {{ vps.uptime || 'N/A' }}</span><span>LOAD: {{ vps.load || '0.00' }}</span><span>CONN: {{ vps.connections || 0 }}</span></div>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
                                 <div class="bg-white/50 p-3 rounded-2xl border border-white shadow-sm flex flex-col justify-between"><div class="text-[9px] text-slate-400 font-bold tracking-wider mb-1">CPU</div><div class="font-black text-lg text-slate-700">{{ vps.cpu || 0 }}%</div><div class="w-full bg-slate-200/50 rounded-full h-1 mt-1 overflow-hidden"><div class="bg-indigo-400 h-1 rounded-full" :style="{ width: (vps.cpu || 0) + '%' }"></div></div></div>
                                 <div class="bg-white/50 p-3 rounded-2xl border border-white shadow-sm flex flex-col justify-between"><div class="text-[9px] text-slate-400 font-bold tracking-wider mb-1">MEM</div><div class="font-black text-lg text-slate-700">{{ vps.mem || 0 }}%</div><div class="w-full bg-slate-200/50 rounded-full h-1 mt-1 overflow-hidden"><div class="bg-purple-400 h-1 rounded-full" :style="{ width: (vps.mem || 0) + '%' }"></div></div></div>
@@ -591,6 +591,7 @@
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="copyCommand(generateSubLink(vps.ip, ''), '单机节点普通订阅已复制！')">复制该机普通订阅</div>
                                 <div class="bg-gradient-to-br from-orange-500 to-red-500 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="copyCommand(generateSubLink(vps.ip, 'clash'), '单机节点Clash订阅已复制！')">复制该机Clash订阅</div>
+                                <div class="bg-slate-700 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="pushAgentUpdate()" title="推送更新到所有已接入的 Agent">🔄 推送 Agent 更新</div>
                             </div>
                         </div>
                         </div><!-- /展开区域 -->
@@ -830,7 +831,7 @@
                     <div class="max-w-md mx-auto bg-white/80 p-8 rounded-[2rem] border border-white shadow-xl shadow-slate-200/50 mb-10 relative z-10">
                         <div class="flex justify-between text-sm font-black text-slate-700 mb-3"><span>已用流量: {{ formatBytes(users[0]?.traffic_used || 0) }}</span><span class="text-indigo-600">总量: {{ users[0]?.traffic_limit > 0 ? formatBytes(users[0].traffic_limit) : '无限制' }}</span></div>
                         <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner mb-4"><div :class="users[0]?.traffic_used >= users[0]?.traffic_limit && users[0]?.traffic_limit > 0 ? 'bg-rose-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'" class="h-3 transition-all duration-1000 rounded-full" :style="{ width: getTrafficPercent(users[0]?.traffic_used||0, users[0]?.traffic_limit||0) + '%' }"></div></div>
-                        <div class="flex justify-between mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium"><span>账户状态: <span :class="users[0]?.enable === 1 ? 'text-emerald-500 font-bold bg-emerald-50 px-2 py-1 rounded' : 'text-rose-500 font-bold bg-rose-50 px-2 py-1 rounded'">{{ users[0]?.enable === 1 ? '🟢 正常运行' : '🔴 已被封禁' }}</span></span><span>到期时间: <span class="font-bold text-slate-700">{{ formatDate(users[0]?.expire_time) }}</span></span></div>
+                        <div class="flex justify-between mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500 font-medium"><span>账户状态: <span :class="users[0]?.enable === 1 ? 'text-emerald-500 font-bold bg-emerald-50 px-2 py-1 rounded' : 'text-rose-500 font-bold bg-rose-50 px-2 py-1 rounded'">{{ users[0]?.enable === 1 ? '🟢 正常运行' : '🔴 已被封禁' }}</span></span><span>在线连接: <span class="font-bold text-indigo-600">{{ myConnections }}</span></span><span>到期时间: <span class="font-bold text-slate-700">{{ formatDate(users[0]?.expire_time) }}</span></span></div>
                     </div>
                     <div class="flex flex-col md:flex-row justify-center gap-4 relative z-10">
                         <button @click="copyCommand(generateSubLink('', ''), '普通订阅链接已复制！')" class="bg-gradient-to-r from-slate-800 to-black text-white font-black py-4 px-8 rounded-full shadow-2xl transition-all transform hover:scale-105 active:scale-95 text-lg">🔗 复制普通订阅</button>
@@ -929,6 +930,11 @@
                         <div class="max-w-md mb-6">
                             <label class="block text-xs font-bold text-slate-400 mb-2 pl-2">控制面板全局名称</label>
                             <div class="flex gap-3"><input v-model="siteTitleInput" placeholder="Cluster Gateway" class="w-full bg-white/50 border border-white p-3 rounded-2xl transition hover:bg-white focus:bg-white text-sm font-medium"><button @click="saveSiteTitle" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-md whitespace-nowrap">保存更改</button></div>
+                        </div>
+                        <div class="max-w-md mb-6">
+                            <label class="block text-xs font-bold text-slate-400 mb-2 pl-2">🔗 订阅专用域名 <span class="text-slate-300">（隐藏面板真实域名，留空用面板域名）</span></label>
+                            <div class="flex gap-3"><input v-model="subDomainInput" placeholder="https://sub.example.workers.dev" class="w-full bg-white/50 border border-white p-3 rounded-2xl transition hover:bg-white focus:bg-white text-sm font-medium font-mono"><button @click="saveSubDomain" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-md whitespace-nowrap">保存</button></div>
+                            <p class="text-[10px] text-slate-400 mt-1 pl-2">配置后所有订阅链接（普通/Clash/QR）改用该域名；需把该域名反代到面板 <code>/api/sub</code>（例如 Cloudflare Worker）。</p>
                         </div>
                         <div class="flex flex-col gap-3">
                             <label class="block text-xs font-bold text-slate-400 mb-2 pl-2">管理员订阅防泄漏重置</label>
@@ -1557,6 +1563,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                         const liveByIp = new Map(servers.value.filter(item => item._realtime_ts).map(item => [normalizeRealtimeKey(item.ip), item]));
                         servers.value = (data.servers || []).map(item => { const live = liveByIp.get(normalizeRealtimeKey(item.ip)); return live && live._realtime_ts > Number(item.last_report || 0) ? { ...item, ...live } : item; }); nodes.value = data.nodes || []; users.value = data.users || []; groups.value = (data.groups || []).map(group => { let members = []; let resources = []; try { members = JSON.parse(group.members || '[]'); } catch (e) {} try { resources = JSON.parse(group.resources || '[]'); } catch (e) {} groupDrafts[group.id] = { members: Array.isArray(members) ? members : [], resources: Array.isArray(resources) ? resources.map(resource => `${resource.type}:${resource.id}`) : [] }; return group; });
                         if (data.siteTitle) { siteTitle.value = data.siteTitle; siteTitleInput.value = data.siteTitle; }
+                        if (data.subDomain !== undefined) { subDomain.value = data.subDomain; subDomainInput.value = data.subDomain; }
                         if (data.mySubToken) mySubToken.value = data.mySubToken;
                         if (data.realtimeUrl && data.realtimeUrl !== realtimeUrl.value) { realtimeUrl.value = data.realtimeUrl; connectRealtime(); }
                         servers.value.forEach(s => { 
@@ -1774,16 +1781,36 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 const getVpsName = (ip) => servers.value.find(s => s.ip === ip)?.name || ip;
                 
                 const generateProbeCmd = (ip) => { const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=probe-installer`; return `curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
+                const myConnections = computed(() => {
+                    const ips = new Set((nodes.value || []).map(n => n.vps_ip));
+                    return (servers.value || []).filter(s => ips.has(s.ip)).reduce((sum, s) => sum + (Number(s.connections) || 0), 0);
+                });
+                const pushAgentUpdate = async () => {
+                    if (!confirm('推送更新到所有已接入的 Agent？（各 Agent 将在 10-90 秒内自动拉取最新组件）')) return;
+                    try {
+                        const res = await fetchApi('/api/agents/update', { method: 'POST' });
+                        const r = await res.json().catch(() => ({}));
+                        alert(r.success ? '✅ 已推送，各 Agent 将在下次上报时自动更新' : '推送失败: ' + (r.error || ''));
+                    } catch (e) { alert('推送失败: ' + e.message); }
+                };
                 const saveOsMap = () => { localStorage.setItem('xui_deploy_os', JSON.stringify(deployOsMap)); };
                 const generateCmd = (ip) => { const osType = deployOsMap[ip] || 'debian'; const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=full-installer`; if (osType === 'alpine') return `apk update && apk add curl && curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; else return `apt-get update -y && apt-get install -y curl && bash <(curl -fsSL -H "Authorization: ${token}" "${scriptUrl}") --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
 
                 const saveSiteTitle = async () => { if(!siteTitleInput.value) return alert('名称不能为空！'); await fetchApi('/api/settings', { method: 'POST', body: JSON.stringify({ site_title: siteTitleInput.value }) }); siteTitle.value = siteTitleInput.value; alert('✅ XUI 聚合面板名称保存成功！'); };
+                const subDomainInput = ref('');
+                const subDomain = ref('');
+                const saveSubDomain = async () => {
+                    await fetchApi('/api/settings', { method: 'POST', body: JSON.stringify({ sub_domain: subDomainInput.value }) });
+                    subDomain.value = subDomainInput.value.trim().replace(/\/$/, '');
+                    alert('✅ 订阅专用域名已保存！之后复制的订阅链接将使用该域名。');
+                };
                 const updateUserPassword = async () => { if(!userNewPassword.value) return alert('请输入新密码'); await fetchApi('/api/user/password', { method: 'PUT', body: JSON.stringify({ password: userNewPassword.value }) }); alert('✅ 密码修改成功！请使用新密码重新登录。'); logout(); };
                 const resetMySubLink = async () => { if(confirm('🚨 危险操作！重置后系统将为您签发全新的 UUID 订阅令牌，原链接将【立即作废】！确定要继续重置吗？')) { await fetchApi('/api/user/sub_token', { method: 'PUT' }); alert('✅ 订阅令牌已刷新！'); refreshData(); } };
                 
                 const generateSubLink = (ip='', format='') => { 
                     const tokenToUse = mySubToken.value || authKey.value; 
-                    let link = `${currentDomain}/api/sub?user=${encodeURIComponent(currentUser.value)}&token=${encodeURIComponent(tokenToUse)}`;
+                    const base = subDomain.value || currentDomain.value;
+                    let link = `${base}/api/sub?user=${encodeURIComponent(currentUser.value)}&token=${encodeURIComponent(tokenToUse)}`;
                     if (ip) link += `&ip=${ip}`;
                     if (format) link += `&format=${format}`;
                     return link;
@@ -2103,8 +2130,8 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 return { 
                     isLoggedIn, showLoginModal, loginUser, password, currentUser, role, activeTab, 
                     servers, nodes, users, groups, newVps, newNodeParams, newUser, newGroupName,
-                    login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic,
-                    getNodesByIp, getVpsName, formatBytes, formatDate, getExpireText, getTrafficPercent, getPingColor, isOnline, generateCmd, generateProbeCmd, generateSubLink, copyCommand, nodeCollapsed, toggleNodeCollapse, visibleNodes, vpsCollapsed, isVpsCollapsed, toggleVpsCollapse,
+                    login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic, pushAgentUpdate, subDomainInput, saveSubDomain,
+                    getNodesByIp, getVpsName, formatBytes, formatDate, getExpireText, getTrafficPercent, getPingColor, isOnline, generateCmd, generateProbeCmd, generateSubLink, copyCommand, nodeCollapsed, toggleNodeCollapse, visibleNodes, vpsCollapsed, isVpsCollapsed, toggleVpsCollapse, myConnections,
                     globalOnline, globalTraffic, globalSpeedIn, globalSpeedOut, deployOsMap, saveOsMap, siteTitle, siteTitleInput, saveSiteTitle, userNewPassword, updateUserPassword, resetMySubLink, generateUUIDForNewUser, batchStartPort, batchUser, deployAllProtocols,
                     probeSys, publicProbeServers, filteredProbeServers, probeView, probeDetailId, probeDetail, setProbeView, openProbeDetail, probeGlobalOnline, probeGlobalOffline, probeGlobalSpeedIn, probeGlobalSpeedOut, probeGlobalNetRx, probeGlobalNetTx, filteredProbeGroups, probeCountryStats, currentFilter,
                     saveProbeSettings, saveSubscriptionProtection, adminProbeServers, probeEditModalOpen, editingProbeNode, openProbeEditModal, saveProbeEdit, deleteProbeNode, currentDomain,

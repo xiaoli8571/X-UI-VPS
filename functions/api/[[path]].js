@@ -602,7 +602,7 @@ async function recordLoginFailure(db, request) {
     const row = await db.prepare('SELECT failures, window_started_at FROM login_throttles WHERE key = ?').bind(key).first();
     const freshWindow = !row || now - Number(row.window_started_at || 0) > 15 * 60 * 1000;
     const failures = freshWindow ? 1 : Number(row.failures || 0) + 1;
-    const blockedUntil = failures >= 8 ? now + 15 * 60 * 1000 : 0;
+    const blockedUntil = failures >= 5 ? now + 10 * 60 * 1000 : 0;
     await db.prepare('INSERT INTO login_throttles (key, failures, window_started_at, blocked_until) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET failures = excluded.failures, window_started_at = excluded.window_started_at, blocked_until = excluded.blocked_until').bind(key, failures, freshWindow ? now : row.window_started_at, blockedUntil).run();
 }
 
@@ -657,6 +657,8 @@ async function initializeDbSchema(db) {
         if (usersWithoutToken && usersWithoutToken.length) await db.batch(usersWithoutToken.map(user => db.prepare("UPDATE users SET sub_token = ? WHERE username = ? AND (sub_token IS NULL OR sub_token = '')").bind(crypto.randomUUID(), user.username)));
     } catch (error) {}
     try { await db.prepare("SELECT reset_day FROM probe_servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE probe_servers ADD COLUMN reset_day TEXT DEFAULT '1'").run(); } catch(e){} }
+    try { await db.prepare("SELECT connections FROM probe_servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE probe_servers ADD COLUMN connections INTEGER DEFAULT 0").run(); } catch(e){} }
+    try { await db.prepare("SELECT connections FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN connections INTEGER DEFAULT 0").run(); } catch(e){} }
     try { await db.prepare("SELECT socks5_enable FROM servers LIMIT 1").first(); } catch (e) { const s5Cols = ['socks5_enable INTEGER DEFAULT 0', 'socks5_addr TEXT DEFAULT ""', 'socks5_port INTEGER DEFAULT 0', 'socks5_user TEXT DEFAULT ""', 'socks5_pass TEXT DEFAULT ""']; for (let col of s5Cols) { try { await db.prepare(`ALTER TABLE servers ADD COLUMN ${col}`).run(); } catch(err){} } }
     try { await db.prepare("SELECT socks5_mode FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN socks5_mode TEXT DEFAULT 'global'").run(); } catch(err){} try { await db.prepare("ALTER TABLE servers ADD COLUMN socks5_domains TEXT DEFAULT ''").run(); } catch(err){} }
     try { await db.prepare("SELECT agent_token FROM servers LIMIT 1").first(); } catch (e) { try { await db.prepare("ALTER TABLE servers ADD COLUMN agent_token TEXT").run(); } catch(err){} }
@@ -1465,12 +1467,12 @@ export async function onRequest(context) {
         const serverName = xuiServer.name;
 
         try { 
-            await db.prepare("UPDATE servers SET cpu=?, mem=?, disk=?, load=?, uptime=?, net_in_speed=?, net_out_speed=?, tcp_conn=?, udp_conn=?, last_report=?, alert_sent=0 WHERE ip=?")
-                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', data.net_in_speed||0, data.net_out_speed||0, data.tcp_conn||0, data.udp_conn||0, nowMs, vpsIp).run(); 
+            await db.prepare("UPDATE servers SET cpu=?, mem=?, disk=?, load=?, uptime=?, net_in_speed=?, net_out_speed=?, tcp_conn=?, udp_conn=?, connections=?, last_report=?, alert_sent=0 WHERE ip=?")
+                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', data.net_in_speed||0, data.net_out_speed||0, data.tcp_conn||0, data.udp_conn||0, data.connections||0, nowMs, vpsIp).run(); 
         } catch (e) { 
             await ensureDbSchema(db); 
-            await db.prepare("UPDATE servers SET cpu=?, mem=?, disk=?, load=?, uptime=?, net_in_speed=?, net_out_speed=?, tcp_conn=?, udp_conn=?, last_report=?, alert_sent=0 WHERE ip=?")
-                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', data.net_in_speed||0, data.net_out_speed||0, data.tcp_conn||0, data.udp_conn||0, nowMs, vpsIp).run(); 
+            await db.prepare("UPDATE servers SET cpu=?, mem=?, disk=?, load=?, uptime=?, net_in_speed=?, net_out_speed=?, tcp_conn=?, udp_conn=?, connections=?, last_report=?, alert_sent=0 WHERE ip=?")
+                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', data.net_in_speed||0, data.net_out_speed||0, data.tcp_conn||0, data.udp_conn||0, data.connections||0, nowMs, vpsIp).run(); 
         }
 
         try {
@@ -1540,8 +1542,8 @@ export async function onRequest(context) {
                 history.time = updateLabels(history.time); history.last_time = nowMs;
             }
 
-            await db.prepare(`UPDATE probe_servers SET cpu=?, ram=?, disk=?, load_avg=?, uptime=?, last_updated=?, ram_total=?, net_rx=?, net_tx=?, net_in_speed=?, net_out_speed=?, os=?, cpu_info=?, arch=?, boot_time=?, ram_used=?, swap_total=?, swap_used=?, disk_total=?, disk_used=?, processes=?, tcp_conn=?, udp_conn=?, ping_ct=?, ping_cu=?, ping_cm=?, ping_bd=?, monthly_rx=CASE WHEN last_report_id=? THEN monthly_rx ELSE ? END, monthly_tx=CASE WHEN last_report_id=? THEN monthly_tx ELSE ? END, last_rx=CASE WHEN last_report_id=? THEN last_rx ELSE ? END, last_tx=CASE WHEN last_report_id=? THEN last_tx ELSE ? END, reset_month=?, history=?, virt=?, last_report_id=? WHERE id=?`)
-                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', nowMs, data.ram_total||'0', data.net_rx||'0', data.net_tx||'0', data.net_in_speed||0, data.net_out_speed||0, data.os||'', data.cpu_info||'', data.arch||'', data.boot_time||'', data.ram_used||'0', data.swap_total||'0', data.swap_used||'0', data.disk_total||'0', data.disk_used||'0', data.processes||'0', data.tcp_conn||0, data.udp_conn||0, data.ping_ct||'0', data.ping_cu||'0', data.ping_cm||'0', data.ping_bd||'0', data.report_id, monthly_rx.toString(), data.report_id, monthly_tx.toString(), data.report_id, last_rx.toString(), data.report_id, last_tx.toString(), reset_month, JSON.stringify(history), data.virt||'', data.report_id, vpsIp).run();
+            await db.prepare(`UPDATE probe_servers SET cpu=?, ram=?, disk=?, load_avg=?, uptime=?, last_updated=?, ram_total=?, net_rx=?, net_tx=?, net_in_speed=?, net_out_speed=?, os=?, cpu_info=?, arch=?, boot_time=?, ram_used=?, swap_total=?, swap_used=?, disk_total=?, disk_used=?, processes=?, tcp_conn=?, udp_conn=?, connections=?, ping_ct=?, ping_cu=?, ping_cm=?, ping_bd=?, monthly_rx=CASE WHEN last_report_id=? THEN monthly_rx ELSE ? END, monthly_tx=CASE WHEN last_report_id=? THEN monthly_tx ELSE ? END, last_rx=CASE WHEN last_report_id=? THEN last_rx ELSE ? END, last_tx=CASE WHEN last_report_id=? THEN last_tx ELSE ? END, reset_month=?, history=?, virt=?, last_report_id=? WHERE id=?`)
+                    .bind(data.cpu||0, data.mem||0, data.disk||0, data.load||'', data.uptime||'', nowMs, data.ram_total||'0', data.net_rx||'0', data.net_tx||'0', data.net_in_speed||0, data.net_out_speed||0, data.os||'', data.cpu_info||'', data.arch||'', data.boot_time||'', data.ram_used||'0', data.swap_total||'0', data.swap_used||'0', data.disk_total||'0', data.disk_used||'0', data.processes||'0', data.tcp_conn||0, data.udp_conn||0, data.connections||0, data.ping_ct||'0', data.ping_cu||'0', data.ping_cm||'0', data.ping_bd||'0', data.report_id, monthly_rx.toString(), data.report_id, monthly_tx.toString(), data.report_id, last_rx.toString(), data.report_id, last_tx.toString(), reset_month, JSON.stringify(history), data.virt||'', data.report_id, vpsIp).run();
 
         } catch (e) { console.error("探针数据同步失败:", e); }
 
@@ -1592,7 +1594,9 @@ export async function onRequest(context) {
         } catch(e) {}
         
         const effectiveInterval = Math.min(300, fastMode ? Math.max(10, reportInterval) : Math.max(45, reportInterval));
-        return Response.json({ success: true, fast_mode: fastMode, interval: effectiveInterval, ping_ct: pingCt, ping_cu: pingCu, ping_cm: pingCm });
+        let forceUpdate = 0;
+        try { const f = await db.prepare("SELECT val FROM sys_config WHERE key = 'force_agent_update'").first(); if (f && f.val) forceUpdate = parseInt(f.val) || 0; } catch(e){}
+        return Response.json({ success: true, fast_mode: fastMode, interval: effectiveInterval, ping_ct: pingCt, ping_cu: pingCu, ping_cm: pingCm, force_update: forceUpdate });
      } catch (err) {
         return Response.json({ error: "REPORT_ERR: " + (err && err.message ? err.message : String(err)) }, { status: 500 });
      }
@@ -1998,7 +2002,7 @@ rules:
         if (action === "data") {
             const servers = isAdmin
                 ? (await db.prepare("SELECT * FROM servers").all()).results
-                : (await db.prepare("SELECT ip, name, cpu, mem, last_report, disk, load, uptime, net_in_speed, net_out_speed, tcp_conn, udp_conn FROM servers").all()).results;
+                : (await db.prepare("SELECT ip, name, cpu, mem, last_report, disk, load, uptime, net_in_speed, net_out_speed, tcp_conn, udp_conn, connections FROM servers").all()).results;
             if (isAdmin) {
                 for (const server of servers) {
                     if (!server.agent_token) {
@@ -2021,9 +2025,15 @@ rules:
             }
             else { const u = await db.prepare("SELECT sub_token FROM users WHERE username = ?").bind(currentUser).first(); if(u && u.sub_token) mySubToken = u.sub_token; }
             const realtime = await db.prepare("SELECT val FROM sys_config WHERE key = 'realtime_url'").first();
-            return Response.json({ servers, nodes, users, groups, siteTitle, mySubToken, realtimeUrl: env.REALTIME_URL || realtime && realtime.val || '' });
+            let subDomain = ''; try { const r = await db.prepare("SELECT val FROM sys_config WHERE key='sub_domain'").first(); if (r && r.val) subDomain = r.val; } catch(e){}
+            return Response.json({ servers, nodes, users, groups, siteTitle, mySubToken, realtimeUrl: env.REALTIME_URL || realtime && realtime.val || '', subDomain });
         }
         
+        if (action === "agents" && params.path[1] === "update" && method === "POST" && isAdmin) {
+            // 一键推送：标记 force_agent_update，各 agent 下次上报（10-90 秒）立即拉新版组件
+            await db.prepare("INSERT OR REPLACE INTO sys_config (key, val, ts) VALUES ('force_agent_update', ?, ?)").bind(String(Date.now()), Date.now()).run();
+            return Response.json({ success: true });
+        }
         if (action === "settings" && method === "POST" && isAdmin) {
             const { site_title, realtime_url } = await request.json();
             const statements = [];
@@ -2032,6 +2042,12 @@ rules:
                 const normalized = realtime_url.trim().replace(/\/$/, '');
                 if (normalized && !/^https:\/\//i.test(normalized)) return Response.json({ error: 'realtime_url must use https' }, { status: 400 });
                 statements.push(db.prepare("INSERT OR REPLACE INTO sys_config (key, val, ts) VALUES ('realtime_url', ?, ?)").bind(normalized, Date.now()));
+            }
+            if (typeof sub_domain === 'string') {
+                // 订阅专用域名（隐藏面板真实域名）；留空则用面板默认域名
+                const normalized = sub_domain.trim().replace(/\/$/, '');
+                if (normalized && !/^https?:\/\//i.test(normalized)) return Response.json({ error: '订阅域名必须以 http(s):// 开头（留空使用面板域名）' }, { status: 400 });
+                statements.push(db.prepare("INSERT OR REPLACE INTO sys_config (key, val, ts) VALUES ('sub_domain', ?, ?)").bind(normalized, Date.now()));
             }
             if (!statements.length) return Response.json({ error: 'No supported settings supplied' }, { status: 400 });
             await db.batch(statements);
