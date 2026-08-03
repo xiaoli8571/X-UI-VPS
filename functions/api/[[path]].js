@@ -1427,7 +1427,7 @@ export async function onRequest(context) {
         if (!(await verifyAgent(authHeader, ip, db, env))) return new Response('Unauthorized', { status: 401 });
         if (!env.ASSETS) return Response.json({ error: 'ASSETS binding is unavailable' }, { status: 503 });
         const component = new URL(request.url).searchParams.get('component') || 'agent';
-        const assets = { agent: '/vps/agent.py', 'realtime-client': '/vps/realtime_client.py', 'proxy-manager': '/vps/lite_manager.py', 'proxy-server': '/vps/proxy_server.py', 'proxy-installer': '/vps/residential-proxy.sh', 'full-installer': '/vps/xui.sh' };
+        const assets = { agent: '/vps/agent.py', 'realtime-client': '/vps/realtime_client.py', 'proxy-manager': '/vps/lite_manager.py', 'proxy-server': '/vps/proxy_server.py', 'proxy-installer': '/vps/residential-proxy.sh', 'full-installer': '/vps/xui.sh', 'probe-installer': '/vps/probe.sh' };
         if (!assets[component]) return Response.json({ error: 'Unknown agent component' }, { status: 400 });
         const assetUrl = new URL(assets[component], request.url);
         const asset = await env.ASSETS.fetch(assetUrl);

@@ -1245,6 +1245,12 @@ def report_proxy_status():
 
 def fetch_and_apply_configs():
     global REALTIME_URL, realtime_channel
+    # 探针模式：宿主机只上报状态（不构建 sing-box，代理跑在容器里）
+    probe_only = os.environ.get("PROBE_ONLY") == "1"
+    try:
+        with open(CONF_FILE, "r", encoding="utf-8") as f: _cfg = json.load(f)
+        if _cfg.get("probe_only"): probe_only = True
+    except Exception: pass
     try:
         with urllib.request.urlopen(urllib.request.Request(f"{API_URL}?ip={VPS_IP}", headers=HEADERS), timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
@@ -1309,6 +1315,10 @@ def fetch_and_apply_configs():
                 runtime_socks = {}
             runtime_warp = runtime_egress[5:] if runtime_egress.startswith("warp_") else "off"
             config_hash = hashlib.sha256(json.dumps({"nodes": nodes, "egress": runtime_egress}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            if probe_only:
+                # 探针模式：跳过 sing-box 构建（保持心跳上报系统状态）
+                print("[agent] probe-only: skipping sing-box build", flush=True)
+                return nodes if nodes is not None else []
             try:
                 if runtime_egress == "residential" and not residential.get("available"): raise RuntimeError("residential proxy is unavailable")
                 build_singbox_config(nodes, current_proxy_config, peers, mesh, runtime_socks, runtime_warp)
@@ -1369,6 +1379,16 @@ def fetch_and_apply_configs():
 
 if __name__ == "__main__":
     heartbeat_state = {"nodes": [], "argo_urls": []}
+
+    # 探针模式：宿主机只上报状态（不构建 sing-box 代理，代理跑在容器里）
+    probe_only = os.environ.get("PROBE_ONLY") == "1"
+    try:
+        with open(CONF_FILE, "r", encoding="utf-8") as f: _cfg = json.load(f)
+        if _cfg.get("probe_only"): probe_only = True
+    except Exception:
+        pass
+    if probe_only:
+        print("[agent] probe-only mode: status reporting only, no sing-box", flush=True)
 
     def on_realtime_message(message):
         global realtime_status_interval
