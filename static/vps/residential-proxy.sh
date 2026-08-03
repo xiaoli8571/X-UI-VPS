@@ -106,6 +106,13 @@ install_dependencies() {
                 || { echo "❌ 依赖安装失败"; exit 1; }
             ;;
         apk)
+            # 磁盘空间预检：apk 解压 I/O error 常因磁盘满或缓存损坏
+            DISK_AVAIL_KB=$(df -P / | awk 'NR==2 {print $4}')
+            if [ "${DISK_AVAIL_KB:-0}" -lt 204800 ]; then
+                echo "⚠️ 磁盘剩余不足 200MB（当前 $(df -h / | awk 'NR==2 {print $4}' | tr -d '\n')），先清理 apk 缓存..."
+                rm -rf /var/cache/apk/*
+                df -h / | awk 'NR==2 {print "   清理后剩余: " $4}'
+            fi
             apk update || true
             APK_TRY=0
             while [ "$APK_TRY" -lt 3 ]; do
