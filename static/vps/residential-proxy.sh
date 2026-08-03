@@ -42,7 +42,10 @@ if [ -z "$VPS_IP" ]; then
 fi
 if ! printf '%s' "$AGENT_TOKEN" | grep -Eq '^[A-Za-z0-9._:-]+$'; then echo "❌ Agent Token 包含非法字符"; exit 1; fi
 if ! printf '%s\n%s\n' "$DOMAIN" "$CONTROLLER" | grep -Eq '^https://[A-Za-z0-9._:/-]+$'; then echo "❌ 域名参数必须使用 HTTPS"; exit 1; fi
-if ! printf '%s' "$VPS_IP" | grep -Eq '^[0-9A-Fa-f:.]+$'; then echo "❌ VPS IP 格式无效"; exit 1; fi
+# Accept both IPv4/IPv6 and domain names (FQDN)
+VPS_IP_TRIMMED=$(echo "$VPS_IP" | tr -d '[:space:]')
+if ! printf '%s' "$VPS_IP_TRIMMED" | grep -Eq '^[0-9A-Fa-f:.a-zA-Z-]{2,255}$'; then echo "❌ VPS IP 格式无效"; exit 1; fi
+export VPS_IP="$VPS_IP_TRIMMED"
 
 export C2_URL="$CONTROLLER"
 export WEB_USER="${WEB_USER:-admin}"
