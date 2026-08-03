@@ -2035,7 +2035,7 @@ rules:
             return Response.json({ success: true });
         }
         if (action === "settings" && method === "POST" && isAdmin) {
-            const { site_title, realtime_url } = await request.json();
+            const { site_title, realtime_url, sub_domain } = await request.json();
             const statements = [];
             if (typeof site_title === 'string' && site_title.trim()) statements.push(db.prepare("INSERT OR REPLACE INTO sys_config (key, val, ts) VALUES ('site_title', ?, ?)").bind(site_title.trim(), Date.now()));
             if (typeof realtime_url === 'string') {
