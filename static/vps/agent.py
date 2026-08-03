@@ -582,6 +582,16 @@ def get_port_traffic(port, protocol="tcp", node_id=None):
         except Exception:
             pass
 
+    # Fallback: 防火墙 per-port 计数器（iptables/nftables 累计字节）。
+    # sing-box 的 clash_api 不支持 /stats/inbound（mihomo 专属），因此用
+    # ensure_firewall_open 插入的 dport(INPUT)/sport(OUTPUT) ACCEPT 规则计量。
+    try:
+        fw = _read_iptables_port_bytes(port, protocol)
+        if fw is not None:
+            return fw
+    except Exception:
+        pass
+
     # Firewall counters include unauthenticated probes and are not reliable
     # per-user billing data. Fail closed until sing-box stats are available.
     return None
