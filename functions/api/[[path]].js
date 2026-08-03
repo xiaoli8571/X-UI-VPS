@@ -1451,7 +1451,10 @@ export async function onRequest(context) {
         const nowMs = Date.now();
         const vpsIp = data.ip;
         const authHeader = request.headers.get("Authorization");
-        if (!(await verifyAgent(authHeader, vpsIp, db, env))) return new Response("Unauthorized", { status: 401 });
+        if (!(await verifyAgent(authHeader, vpsIp, db, env))) {
+            console.error(`[report-401] ip=${String(vpsIp)} auth=${String(authHeader).slice(0, 12)}`);
+            return new Response("Unauthorized", { status: 401 });
+        }
         if (!data.report_id) return Response.json({ error: "report_id is required" }, { status: 400 });
         const duplicateReport = !!(await db.prepare("SELECT report_id FROM report_receipts WHERE report_id = ? AND applied = 1").bind(data.report_id).first());
 

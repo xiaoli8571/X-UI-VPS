@@ -33,8 +33,24 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 mkdir -p /opt/xui
-# 清除历史更新标记（探针模式不参与 sing-box readiness 检查）
+
+# ============ 清理旧完整版 agent 环境（sing-box 代理 + 旧服务 + 旧文件） ============
+echo "[probe] 清理旧代理环境（sing-box / 旧 agent / 旧配置）..."
+# 停止并移除 sing-box 代理（代理现在跑在容器里，宿主机不再需要）
+systemctl stop sing-box 2>/dev/null; systemctl disable sing-box 2>/dev/null
+rc-service sing-box stop 2>/dev/null
+rm -rf /etc/sing-box
+rm -f /etc/systemd/system/sing-box.service /etc/init.d/sing-box
+# 停止旧 agent 服务（后面会用 PROBE_ONLY=1 重新安装）
+systemctl stop xui-agent 2>/dev/null; systemctl disable xui-agent 2>/dev/null
+rc-service xui-agent stop 2>/dev/null
+# 清除更新标记与旧代理组件/证书（config.json 会被覆盖重写）
 rm -f /opt/xui/.update-pending
+rm -f /opt/xui/*.pem /opt/xui/*.key /opt/xui/warp.json /opt/xui/egress-state.json \
+      /opt/xui/traffic-state.json /opt/xui/realtime_client.py /opt/xui/lite_manager.py \
+      /opt/xui/proxy_server.py /opt/xui/run-agent.sh 2>/dev/null
+systemctl daemon-reload 2>/dev/null || true
+echo "[probe] 旧环境已清理"
 
 # 下载探针 agent（agent.py 探针模式 = 只上报状态）
 echo "[probe] 下载 agent.py..."
