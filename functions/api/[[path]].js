@@ -1994,9 +1994,11 @@ rules:
                     const ip = String(item && item.ip || '').trim();
                     const name = String(item && item.name || ip).trim().slice(0, 100);
                     const os = ['alpine', 'debian', 'ubuntu'].includes(String(item && item.os || '').toLowerCase()) ? String(item.os).toLowerCase() : 'debian';
-                    if (!/^[0-9A-Fa-f:.]{2,64}$/.test(ip) || seen.has(ip)) continue;
-                    seen.add(ip);
-                    statements.push(db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token, os) SELECT ?, ?, 0, ?, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO NOTHING RETURNING ip").bind(ip, name, crypto.randomUUID(), os));
+                    // 去重键用 (ip|name)：宿主机与容器可共享同一 IP（名称不同视为不同记录）
+                    const dedupKey = `${ip}|${name}`;
+                    if (!/^[0-9A-Fa-f:.]{2,64}$/.test(ip) || seen.has(dedupKey)) continue;
+                    seen.add(dedupKey);
+                    statements.push(db.prepare("INSERT INTO servers (ip, name, alert_sent, agent_token, os) SELECT ?, ?, 0, ?, ? WHERE (SELECT COUNT(*) FROM servers) < 100 ON CONFLICT(ip, name) DO UPDATE SET os = excluded.os RETURNING ip").bind(ip, name, crypto.randomUUID(), os));
                 }
                 if (!statements.length) return Response.json({ success: true, imported: 0, total: 0, message: '没有有效记录' });
                 const results = await db.batch(statements);
