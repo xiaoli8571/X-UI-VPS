@@ -757,15 +757,18 @@ async function verifyAuth(authHeader, request, db, env, context) {
 }
 
 async function verifyAgent(authHeader, ip, db, env) {
-    if (!authHeader) return false;
+    if (!authHeader) return null;
     if (ip) {
         // 宿主机与容器可能共享同一 IP：任一记录的 token 匹配即通过
         const { results } = await db.prepare("SELECT agent_token FROM servers WHERE ip = ?").bind(ip).all();
         for (const r of results || []) {
-            if (r.agent_token && authHeader === r.agent_token) return true;
+            if (r.agent_token && authHeader === r.agent_token) return ip;
         }
     }
-    return false;
+    // IP 迁移（改 IP 后 agent 仍用旧 IP 上报）兜底：按 token 反查真实 IP
+    const byToken = await db.prepare("SELECT ip FROM servers WHERE agent_token = ?").bind(authHeader).first();
+    if (byToken) return byToken.ip;
+    return null;
 }
 
 // 解析分享节点链接（vless:// vmess:// trojan:// hysteria2:// tuic:// ss:// ssr://）
@@ -1454,10 +1457,15 @@ export async function onRequest(context) {
         const nowMs = Date.now();
         const vpsIp = data.ip;
         const authHeader = request.headers.get("Authorization");
-        if (!(await verifyAgent(authHeader, vpsIp, db, env))) {
+        const verifiedIp = await verifyAgent(authHeader, vpsIp, db, env);
+        if (!verifiedIp) {
             console.error(`[report-401] ip=${String(vpsIp)} auth=${String(authHeader).slice(0, 12)}`);
             return new Response("Unauthorized", { status: 401 });
         }
+        // 改 IP 后 agent 仍用旧 IP 上报：以 token 反查的真实 IP 为准
+        const effectiveIp = verifiedIp || vpsIp;
+        // 后续所有统计/上报均使用真实 IP（改 IP 后仍能正确归属到新 IP）
+        vpsIp = effectiveIp;
         if (!data.report_id) return Response.json({ error: "report_id is required" }, { status: 400 });
         const duplicateReport = !!(await db.prepare("SELECT report_id FROM report_receipts WHERE report_id = ? AND applied = 1").bind(data.report_id).first());
 
@@ -1618,8 +1626,10 @@ export async function onRequest(context) {
         const ip = new URL(request.url).searchParams.get("ip"); const now = Date.now(); const adminUser = env.ADMIN_USERNAME || "admin";
         const authHeader = request.headers.get("Authorization");
         const currentUser = await verifyAuth(authHeader, request, db, env, context);
-        const agentAuthenticated = await verifyAgent(authHeader, ip, db, env);
-        if (currentUser !== adminUser && !agentAuthenticated) return new Response("Unauthorized", { status: 401 });
+        const agentVerifiedIp = await verifyAgent(authHeader, ip, db, env);
+        if (currentUser !== adminUser && !agentVerifiedIp) return new Response("Unauthorized", { status: 401 });
+        // 改 IP 后 agent 仍用旧 IP 拉配置：以 token 反查的真实 IP 下发节点
+        if (agentVerifiedIp && agentVerifiedIp !== ip) ip = agentVerifiedIp;
         const query = `SELECT n.* FROM nodes n LEFT JOIN users u ON n.username = u.username WHERE n.vps_ip = ? AND n.enable = 1 AND (n.traffic_limit = 0 OR n.traffic_used < n.traffic_limit) AND (n.expire_time = 0 OR n.expire_time > ?) AND (n.username = ? OR n.username = 'admin' OR (u.username IS NOT NULL AND u.enable = 1 AND (u.traffic_limit = 0 OR u.traffic_used < u.traffic_limit) AND (u.expire_time = 0 OR u.expire_time > ?)))`;
         const { results: machineNodes } = await db.prepare(query).bind(ip, now, adminUser, now).all();
         for (let node of machineNodes) { if (node.protocol === "dokodemo-door" && node.relay_type === "internal") { const targetNode = await db.prepare("SELECT * FROM nodes WHERE id = ?").bind(node.target_id).first(); if (targetNode) node.chain_target = { ip: targetNode.vps_ip, port: targetNode.port, protocol: targetNode.protocol, uuid: targetNode.uuid, password: targetNode.private_key, sni: targetNode.sni, public_key: targetNode.public_key, short_id: targetNode.short_id }; } }

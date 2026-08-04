@@ -390,8 +390,8 @@ def check_for_update():
 
 # Dashboard viewers receive five-second updates. While nobody is connected,
 # Durable Objects switch routine metric snapshots to a lower rate.
-REALTIME_STATUS_ACTIVE_INTERVAL = 20
-REALTIME_STATUS_IDLE_INTERVAL = 120
+REALTIME_STATUS_ACTIVE_INTERVAL = 10
+REALTIME_STATUS_IDLE_INTERVAL = 10
 realtime_status_interval = REALTIME_STATUS_ACTIVE_INTERVAL
 global_interval = REALTIME_STATUS_ACTIVE_INTERVAL
 fast_mode = False
@@ -402,7 +402,7 @@ last_http_report = 0
 # Keep D1's fallback snapshot fresh for dashboard reloads and reconnects.
 # WebSocket remains the primary five-second live channel. HTTP fallback is
 # throttled to 5 minutes so idle agents don't burn Workers quota.
-REALTIME_HTTP_INTERVAL = 90
+REALTIME_HTTP_INTERVAL = 10
 
 # 🌟 增加全局 Ping 状态缓存锁，防止在非测速轮次上传 '0' 导致前端图表归零
 last_pings = {"ct": "0", "cu": "0", "cm": "0", "bd": "0"}
@@ -1455,7 +1455,7 @@ if __name__ == "__main__":
             elif realtime_channel and realtime_channel.ever_connected and time.time() - realtime_channel.last_disconnected < 30:
                 heartbeat_interval = max(1, 30 - (time.time() - realtime_channel.last_disconnected))
             else:
-                heartbeat_interval = 300
+                heartbeat_interval = 10
             heartbeat_wakeup.wait(timeout=max(1, heartbeat_interval - min(heartbeat_interval - 1, elapsed)))
             heartbeat_wakeup.clear()
 
@@ -1493,5 +1493,5 @@ if __name__ == "__main__":
         elapsed = time.monotonic() - loop_started
         if elapsed > 20:
             print(f"[agent] slow loop completed in {elapsed:.1f}s", flush=True)
-        config_interval = REALTIME_HTTP_INTERVAL if realtime_channel and realtime_channel.connected else 600
+        config_interval = REALTIME_HTTP_INTERVAL if realtime_channel and realtime_channel.connected else 10
         config_wakeup.wait(timeout=max(1, config_interval - min(config_interval - 1, elapsed)))
