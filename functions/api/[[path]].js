@@ -2276,6 +2276,17 @@ rules:
                 const r = await podman(ip, script, args, 900000);
                 return Response.json({ success: r.ok, exitCode: r.exitCode, output: r.output.slice(-8000) });
             }
+            // 卸载 Podman 环境（停止容器 → 卸载软件包 → 清 XFS 池 → 清 iptables）
+            if (method === "POST" && params.path[1] === "uninstall") {
+                const { ip } = await readJsonBody(request, 16 * 1024);
+                if (!ip) return Response.json({ error: 'IP required' }, { status: 400 });
+                if (!podman) return Response.json({ error: 'Podman SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+                if (!(await db.prepare('SELECT ip FROM servers WHERE ip = ?').bind(ip).first())) return Response.json({ error: 'VPS not found' }, { status: 404 });
+                const script = await loadScript('podman-uninstall.sh');
+                if (!script) return Response.json({ error: 'podman-uninstall.sh 未找到' }, { status: 404 });
+                const r = await podman(ip, script, [], 900000);
+                return Response.json({ success: r.ok, exitCode: r.exitCode, output: r.output.slice(-8000) });
+            }
             // 创建小鸡（非交互参数化）
             if (method === "POST" && params.path[1] === "create") {
                 const b = await readJsonBody(request, 16 * 1024);

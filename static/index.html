@@ -623,6 +623,7 @@
                     </div>
                     <div class="flex items-end gap-2">
                         <button @click="podmanInstall" :disabled="!podmanIp || podmanBusy" class="bg-cyan-600 text-white px-6 py-3.5 rounded-2xl font-bold hover:bg-cyan-700 transition-all shadow-lg hover:scale-105 whitespace-nowrap disabled:opacity-40 disabled:scale-100">📦 一键安装 Podman</button>
+                        <button @click="podmanUninstall" :disabled="!podmanIp || podmanBusy" class="bg-rose-600 text-white px-6 py-3.5 rounded-2xl font-bold hover:bg-rose-700 transition-all shadow-lg hover:scale-105 whitespace-nowrap disabled:opacity-40 disabled:scale-100" title="停止容器、卸载 Podman、清理 XFS 池与 iptables 规则">🗑 卸载 Podman</button>
                         <button @click="podmanLoadContainers" :disabled="!podmanIp || podmanBusy" class="bg-slate-800 text-white px-6 py-3.5 rounded-2xl font-bold hover:bg-black transition-all shadow-lg whitespace-nowrap disabled:opacity-40">🔄 刷新容器列表</button>
                     </div>
                 </div>
@@ -1524,6 +1525,14 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     if (data.success) alert('✅ Podman 安装完成！可在「容器列表」中创建小鸡。');
                     podmanLoadContainers();
                 };
+                const podmanUninstall = async () => {
+                    if (!podmanIp.value) return alert('请先选择宿主机 VPS');
+                    if (!confirm(`⚠️ 确认在 ${podmanIp.value} 上卸载 Podman 环境？\n\n将停止并删除所有容器、卸载 Podman 软件包、删除 XFS 存储池与 iptables 规则。\n此操作不可恢复！`)) return;
+                    if (!confirm('🚨 再次确认：所有小鸡与数据将被删除，确定继续？')) return;
+                    const data = await podmanExec('uninstall', { ip: podmanIp.value });
+                    if (data.success) alert('✅ Podman 环境已卸载！');
+                    podmanLoadContainers();
+                };
                 const podmanCreate = async () => {
                     if (!podmanIp.value) return alert('请先选择宿主机 VPS');
                     if (!podmanForm.name || !podmanForm.pass) return alert('请填写容器名称和 Root 密码');
@@ -2099,7 +2108,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     isLoggedIn, showLoginModal, loginUser, password, currentUser, role, activeTab, 
                     servers, nodes, users, groups, newVps, newNodeParams, newUser, newGroupName,
                     login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, copyUserSubLink, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic, pushAgentUpdate, subDomainInput, saveSubDomain,
-                    podmanIp, podmanBusy, podmanOutput, podmanContainers, podmanForm, podmanInstall, podmanCreate, podmanLoadContainers, podmanAction, deployToVps, deploySshMissing, deployBusy, deployOutput,
+                    podmanIp, podmanBusy, podmanOutput, podmanContainers, podmanForm, podmanInstall, podmanUninstall, podmanCreate, podmanLoadContainers, podmanAction, deployToVps, deploySshMissing, deployBusy, deployOutput,
                     getNodesByIp, getVpsName, formatBytes, formatDate, getExpireText, getTrafficPercent, getPingColor, isOnline, generateCmd, generateProbeCmd, generateSubLink, copyCommand, nodeCollapsed, toggleNodeCollapse, visibleNodes, vpsCollapsed, isVpsCollapsed, toggleVpsCollapse, myConnections,
                     globalOnline, globalTraffic, globalSpeedIn, globalSpeedOut, deployOsMap, saveOsMap, siteTitle, siteTitleInput, saveSiteTitle, userNewPassword, updateUserPassword, resetMySubLink, generateUUIDForNewUser, batchStartPort, batchUser, deployAllProtocols,
                     probeSys, publicProbeServers, filteredProbeServers, probeView, probeDetailId, probeDetail, setProbeView, openProbeDetail, probeGlobalOnline, probeGlobalOffline, probeGlobalSpeedIn, probeGlobalSpeedOut, probeGlobalNetRx, probeGlobalNetTx, filteredProbeGroups, probeCountryStats, currentFilter,
