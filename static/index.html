@@ -408,6 +408,7 @@
                         <button @click="activeTab = 'nodes'" :class="activeTab === 'nodes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">服务器与节点</button>
                         <button @click="activeTab = 'users'" :class="activeTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">用户与授权</button>
                         <button @click="activeTab = 'thirdparty'" :class="activeTab === 'thirdparty' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🔗 第三方订阅</button>
+                        <button @click="activeTab = 'domainalerts'" :class="activeTab === 'domainalerts' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🌐 域名提醒</button>
                         <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">⚙️ 系统设置</button>
                         <button @click="activeTab = 'podman'" :class="activeTab === 'podman' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🐳 Podman 管理</button>
                         <button @click="activeTab = 'probe'; probeDetailId = null;" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm text-emerald-600 hover:bg-emerald-50 shadow-sm border border-transparent hover:border-emerald-200">🌐 探针全景大盘</button>
@@ -596,10 +597,13 @@
                                 <div class="text-sky-400 font-mono text-xs truncate cursor-pointer hover:text-sky-300 transition-colors" @click="copyCommand(generateProbeCmd(vps.ip), '探针接入指令已复制！')">{{ generateProbeCmd(vps.ip) }}</div>
                             </div>
                             <div class="grid grid-cols-2 gap-3">
+                                <div class="bg-emerald-600 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="deployToVps(vps.ip, 'agent')" :class="{'opacity-50 pointer-events-none': deployBusy[vps.ip]}" :title="deploySshMissing(vps) ? '请先点击 🔑 SSH 填写该服务器 SSH 凭据' : '通过 SSH 远程执行完整代理安装 (xui.sh)'">{{ deployBusy[vps.ip] ? '⏳ 下发中...' : '🚀 一键下发代理' }}</div>
+                                <div class="bg-teal-600 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="deployToVps(vps.ip, 'probe')" :class="{'opacity-50 pointer-events-none': deployBusy[vps.ip]}" :title="deploySshMissing(vps) ? '请先点击 🔑 SSH 填写该服务器 SSH 凭据' : '通过 SSH 远程执行探针安装 (probe.sh)'">{{ deployBusy[vps.ip] ? '⏳ 下发中...' : '📡 一键下发探针' }}</div>
                                 <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="copyCommand(generateSubLink(vps.ip, ''), '单机节点普通订阅已复制！')">复制该机普通订阅</div>
                                 <div class="bg-gradient-to-br from-orange-500 to-red-500 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="copyCommand(generateSubLink(vps.ip, 'clash'), '单机节点Clash订阅已复制！')">复制该机Clash订阅</div>
                                 <div class="bg-slate-700 p-3 rounded-[1.25rem] cursor-pointer transition flex items-center justify-center text-white font-bold shadow-lg hover:scale-[1.02] active:scale-95 text-xs text-center" @click="pushAgentUpdate()" title="推送更新到所有已接入的 Agent">🔄 推送 Agent 更新</div>
                             </div>
+                            <div v-if="deployOutput[vps.ip]" class="bg-slate-950 text-emerald-300 p-3 rounded-xl font-mono text-[11px] whitespace-pre-wrap max-h-64 overflow-auto mt-2">{{ deployOutput[vps.ip] }}</div>
                         </div>
                         </div><!-- /展开区域 -->
                     </div>
@@ -802,6 +806,34 @@
                 </div>
             </div>
 
+
+            <!-- 🌐 域名提醒（独立一级页） -->
+            <div v-if="isLoggedIn && role === 'admin' && activeTab === 'domainalerts'" class="space-y-8">
+                <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
+                    <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">🌐 域名到期提醒</h3>
+                    <p class="text-xs text-slate-500 mb-5 font-medium">手动添加域名到期时间，到期前 N 天通过 Telegram 机器人提醒（可设置多个提醒时间点）。需在设置中配置 TG 机器人。</p>
+                    <div class="flex flex-col md:flex-row gap-3 items-end">
+                        <div class="flex-1"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">域名</label><input v-model="newDomainAlert.domain" placeholder="例如: example.com" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm font-mono"></div>
+                        <div class="md:w-48"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">到期日期</label><input type="date" v-model="newDomainAlert.expireDate" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm"></div>
+                        <div class="md:w-72"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">提前提醒天数（逗号分隔，可多个）</label><input v-model="newDomainAlert.daysText" placeholder="7,3,1" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm font-mono"></div>
+                        <div class="flex-1"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">备注 <span class="text-slate-300">(可选)</span></label><input v-model="newDomainAlert.note" placeholder="例如: 主域名" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm"></div>
+                        <button @click="addDomainAlert" class="bg-slate-800 text-white px-8 py-3 rounded-2xl font-bold hover:bg-black transition-all shadow-md whitespace-nowrap">➕ 添加提醒</button>
+                    </div>
+                    <div v-if="domainAlerts.length" class="mt-5 space-y-2.5">
+                        <div v-for="alert in domainAlerts" :key="alert.id" class="flex justify-between items-center bg-white/80 border border-white p-4 rounded-2xl shadow-sm">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2"><span class="font-black text-slate-700 font-mono">{{ alert.domain }}</span><span :class="alert.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'" class="text-[10px] px-2 py-0.5 rounded-md font-bold">{{ alert.enabled ? '启用' : '停用' }}</span></div>
+                                <div class="text-[11px] text-slate-400 mt-1">到期: {{ new Date(alert.expire_at).toLocaleDateString('zh-CN') }} · 提前 {{ (alert.notify_days || '').replace(/[\[\]\"]/g,'') || '7,3,1' }} 天提醒<span v-if="alert.note"> · {{ alert.note }}</span></div>
+                            </div>
+                            <div class="flex gap-1.5 shrink-0 ml-2">
+                                <button @click="toggleDomainAlert(alert.id, alert.enabled === 1 ? 0 : 1)" class="text-[11px] px-2 py-1 rounded-md bg-white border border-slate-200 hover:bg-slate-50 font-bold text-slate-600 shadow-sm">{{ alert.enabled === 1 ? '停用' : '启用' }}</button>
+                                <button @click="deleteDomainAlert(alert.id)" class="text-rose-500 text-[11px] px-2 py-1 bg-white border border-rose-100 rounded-md hover:bg-rose-50 font-bold shadow-sm">删除</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div v-if="activeTab === 'settings'" class="space-y-6">
                 <template v-if="role === 'admin'">
                     <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
@@ -828,30 +860,6 @@
                         </div>
                     </div>
 
-                    <!-- 🌐 域名到期提醒 -->
-                    <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
-                        <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">🌐 域名到期提醒</h3>
-                        <p class="text-xs text-slate-500 mb-5 font-medium">手动添加域名到期时间，到期前 N 天通过 Telegram 机器人提醒（可设置多个提醒时间点）。需在设置中配置 TG 机器人。</p>
-                        <div class="flex flex-col md:flex-row gap-3 items-end">
-                            <div class="flex-1"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">域名</label><input v-model="newDomainAlert.domain" placeholder="例如: example.com" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm font-mono"></div>
-                            <div class="md:w-48"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">到期日期</label><input type="date" v-model="newDomainAlert.expireDate" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm"></div>
-                            <div class="md:w-72"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">提前提醒天数（逗号分隔，可多个）</label><input v-model="newDomainAlert.daysText" placeholder="7,3,1" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm font-mono"></div>
-                            <div class="flex-1"><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">备注 <span class="text-slate-300">(可选)</span></label><input v-model="newDomainAlert.note" placeholder="例如: 主域名" class="w-full bg-white/50 border border-white p-3 rounded-2xl text-sm"></div>
-                            <button @click="addDomainAlert" class="bg-slate-800 text-white px-8 py-3 rounded-2xl font-bold hover:bg-black transition-all shadow-md whitespace-nowrap">➕ 添加提醒</button>
-                        </div>
-                        <div v-if="domainAlerts.length" class="mt-5 space-y-2.5">
-                            <div v-for="alert in domainAlerts" :key="alert.id" class="flex justify-between items-center bg-white/80 border border-white p-4 rounded-2xl shadow-sm">
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-2"><span class="font-black text-slate-700 font-mono">{{ alert.domain }}</span><span :class="alert.enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'" class="text-[10px] px-2 py-0.5 rounded-md font-bold">{{ alert.enabled ? '启用' : '停用' }}</span></div>
-                                    <div class="text-[11px] text-slate-400 mt-1">到期: {{ new Date(alert.expire_at).toLocaleDateString('zh-CN') }} · 提前 {{ (alert.notify_days || '').replace(/[\[\]\"]/g,'') || '7,3,1' }} 天提醒<span v-if="alert.note"> · {{ alert.note }}</span></div>
-                                </div>
-                                <div class="flex gap-1.5 shrink-0 ml-2">
-                                    <button @click="toggleDomainAlert(alert.id, alert.enabled === 1 ? 0 : 1)" class="text-[11px] px-2 py-1 rounded-md bg-white border border-slate-200 hover:bg-slate-50 font-bold text-slate-600 shadow-sm">{{ alert.enabled === 1 ? '停用' : '启用' }}</button>
-                                    <button @click="deleteDomainAlert(alert.id)" class="text-rose-500 text-[11px] px-2 py-1 bg-white border border-rose-100 rounded-md hover:bg-rose-50 font-bold shadow-sm">删除</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
                         <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">⚡ Realtime 状态频率策略</h3>
@@ -1682,6 +1690,26 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     batchStartPort[ip] = ''; alert(failures.length ? `⚠️ 部分协议部署失败：\n${failures.join('\n')}` : "✅ 极速 8合1 全家桶部署指令已实时发送！"); refreshData();
                 };
 
+                // 🚀 一键下发（通过已保存 SSH 凭据远程执行 xui.sh / probe.sh）
+                const deployBusy = reactive({});
+                const deployOutput = reactive({});
+                const deploySshMissing = (vps) => !(vps && vps.ssh_pass);
+                const deployToVps = async (ip, mode) => {
+                    if (deployBusy[ip]) return;
+                    const label = mode === 'agent' ? '完整代理 (xui.sh)' : '探针 (probe.sh)';
+                    if (!confirm(`确认通过 SSH 远程下发「${label}」到 ${ip}？\n将自动执行安装脚本，耗时约 1-5 分钟。`)) return;
+                    deployBusy[ip] = true;
+                    deployOutput[ip] = '⏳ 正在通过 SSH 下发并执行...';
+                    try {
+                        const res = await fetchApi('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip, mode }) });
+                        const r = await res.json();
+                        deployOutput[ip] = (r.output || (r.success ? '✅ 下发完成' : '❌ 失败')) + (r.exitCode !== undefined ? `\n[exit code: ${r.exitCode}]` : '');
+                        if (r.success) alert(`✅ ${label} 下发成功！`);
+                        else alert(`❌ ${label} 下发失败，详情见下方输出。`);
+                    } catch (e) { deployOutput[ip] = '❌ ' + (e.message || e); alert('下发失败: ' + (e.message || e)); }
+                    finally { deployBusy[ip] = false; }
+                };
+
                 const deleteNode = async (id) => { await fetchApi(`/api/nodes?id=${id}`, { method: 'DELETE' }); refreshData(); };
                 const toggleNode = async (id, status) => { await fetchApi('/api/nodes', { method: 'PUT', body: JSON.stringify({ id: id, enable: status }) }); refreshData(); };
                 const resetTraffic = async (id) => { await fetchApi('/api/nodes', { method: 'PUT', body: JSON.stringify({ id: id, reset_traffic: true }) }); refreshData(); };
@@ -2060,7 +2088,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     isLoggedIn, showLoginModal, loginUser, password, currentUser, role, activeTab, 
                     servers, nodes, users, groups, newVps, newNodeParams, newUser, newGroupName,
                     login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic, pushAgentUpdate, subDomainInput, saveSubDomain,
-                    podmanIp, podmanBusy, podmanOutput, podmanContainers, podmanForm, podmanInstall, podmanCreate, podmanLoadContainers, podmanAction,
+                    podmanIp, podmanBusy, podmanOutput, podmanContainers, podmanForm, podmanInstall, podmanCreate, podmanLoadContainers, podmanAction, deployToVps, deploySshMissing, deployBusy, deployOutput,
                     getNodesByIp, getVpsName, formatBytes, formatDate, getExpireText, getTrafficPercent, getPingColor, isOnline, generateCmd, generateProbeCmd, generateSubLink, copyCommand, nodeCollapsed, toggleNodeCollapse, visibleNodes, vpsCollapsed, isVpsCollapsed, toggleVpsCollapse, myConnections,
                     globalOnline, globalTraffic, globalSpeedIn, globalSpeedOut, deployOsMap, saveOsMap, siteTitle, siteTitleInput, saveSiteTitle, userNewPassword, updateUserPassword, resetMySubLink, generateUUIDForNewUser, batchStartPort, batchUser, deployAllProtocols,
                     probeSys, publicProbeServers, filteredProbeServers, probeView, probeDetailId, probeDetail, setProbeView, openProbeDetail, probeGlobalOnline, probeGlobalOffline, probeGlobalSpeedIn, probeGlobalSpeedOut, probeGlobalNetRx, probeGlobalNetTx, filteredProbeGroups, probeCountryStats, currentFilter,

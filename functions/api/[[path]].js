@@ -2331,6 +2331,30 @@ rules:
             return Response.json({ error: 'Unknown podman sub-route' }, { status: 400 });
         }
 
+        // 🚀 一键下发：通过已保存的 SSH 凭据在目标 VPS 上远程执行 xui.sh（完整代理）或 probe.sh（只装探针）
+        if (action === "deploy" && isAdmin) {
+            await ensureDbSchema(db);
+            if (method !== "POST") return Response.json({ error: 'POST required' }, { status: 405 });
+            const { ip, mode } = await readJsonBody(request, 16 * 1024).catch(() => ({}));
+            if (!ip) return Response.json({ error: 'IP required' }, { status: 400 });
+            if (!['agent', 'probe'].includes(mode)) return Response.json({ error: 'mode 需为 agent 或 probe' }, { status: 400 });
+            const exec = env.podmanExec;
+            if (!exec) return Response.json({ error: 'SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+            const row = await db.prepare('SELECT ssh_user, ssh_pass, ssh_port, agent_token FROM servers WHERE ip = ?').bind(ip).first();
+            if (!row) return Response.json({ error: 'VPS not found' }, { status: 404 });
+            if (!row.ssh_pass) return Response.json({ error: '未配置 SSH 凭据，请先在服务器卡片点击 🔑 SSH 填写' }, { status: 400 });
+            if (!env.ASSETS) return Response.json({ error: 'ASSETS binding is unavailable' }, { status: 503 });
+            const scriptName = mode === 'agent' ? 'xui.sh' : 'probe.sh';
+            const asset = await env.ASSETS.fetch(new URL(`/vps/${scriptName}`, request.url));
+            if (!asset.ok) return Response.json({ error: `${scriptName} 未找到` }, { status: 404 });
+            const script = await asset.text();
+            const origin = new URL(request.url).origin;
+            const token = row.agent_token || '';
+            const args = ['--api', origin, '--ip', ip, '--token', token];
+            const r = await exec(ip, script, args, 600000);
+            return Response.json({ success: r.ok, exitCode: r.exitCode, output: String(r.output || '').slice(-8000) });
+        }
+
         if (action === "nodes" && isAdmin) {
             if (method === "POST") { const n = await request.json(); const protocols = ['VLESS','XTLS-Reality','Reality','Hysteria2','TUIC','Trojan','H2-Reality','gRPC-Reality','AnyTLS','Naive','Socks5','VLESS-Argo','dokodemo-door']; if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(n.id || ''))) return Response.json({ error: 'Invalid node id' }, { status: 400 }); if (!protocols.includes(n.protocol)) return Response.json({ error: 'Invalid protocol' }, { status: 400 }); if (!Number.isInteger(Number(n.port)) || Number(n.port) < 1 || Number(n.port) > 65535) return Response.json({ error: 'Invalid port' }, { status: 400 }); if (!(await db.prepare('SELECT ip FROM servers WHERE ip = ?').bind(n.vps_ip).first())) return Response.json({ error: 'VPS not found' }, { status: 404 }); if (n.protocol === 'dokodemo-door') { if (!['internal','external'].includes(n.relay_type)) return Response.json({error:'Invalid relay type'},{status:400}); if (n.relay_type === 'external' && (!String(n.target_ip||'').trim() || !Number.isInteger(Number(n.target_port)) || Number(n.target_port)<1 || Number(n.target_port)>65535)) return Response.json({error:'Invalid relay target'},{status:400}); if (n.relay_type === 'internal' && !(await db.prepare('SELECT id FROM nodes WHERE id = ? AND vps_ip = ?').bind(n.target_id,n.vps_ip).first())) return Response.json({error:'Internal relay target not found on VPS'},{status:400}); } if (await db.prepare("SELECT id FROM nodes WHERE id = ?").bind(n.id).first()) return Response.json({ error: "Node already exists" }, { status: 409 }); let nodeUser = n.username || currentUser; if (nodeUser === 'admin') nodeUser = currentUser; await db.prepare(`INSERT INTO nodes (id, uuid, vps_ip, protocol, port, sni, private_key, public_key, short_id, relay_type, target_ip, target_port, target_id, enable, traffic_used, traffic_limit, expire_time, username, network, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(n.id, n.uuid, n.vps_ip, n.protocol, Number(n.port), n.sni||null, n.private_key||null, n.public_key||null, n.short_id||null, n.relay_type||null, n.target_ip||null, n.target_port||null, n.target_id||null, 1, 0, Math.max(0, Number(n.traffic_limit)||0), Math.max(0, Number(n.expire_time)||0), nodeUser, n.network||'tcp', String(n.domain||'').trim()).run(); context.waitUntil(notifyRealtimeVps(env, db, n.vps_ip).catch(()=>{})); return Response.json({ success: true }); }
             if (method === "PUT") { const { id, enable, reset_traffic } = await request.json(); const node = await db.prepare('SELECT vps_ip FROM nodes WHERE id = ?').bind(id).first(); if (!node) return Response.json({ error: 'Node not found' }, { status: 404 }); const statements = []; if (reset_traffic) statements.push(db.prepare("UPDATE nodes SET traffic_used = 0 WHERE id = ?").bind(id)); if (enable !== undefined) statements.push(db.prepare("UPDATE nodes SET enable = ? WHERE id = ?").bind(enable ? 1 : 0, id)); if (statements.length) await db.batch(statements); context.waitUntil(notifyRealtimeVps(env, db, node.vps_ip).catch(()=>{})); return Response.json({ success: true }); }
