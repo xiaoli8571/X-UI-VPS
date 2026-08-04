@@ -895,7 +895,19 @@
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">自定义背景图片 URL (清空恢复纯色)</label><input v-model="probeSys.custom_bg" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">自定义 &lt;head&gt; 注入</label><textarea v-model="probeSys.custom_head" rows="2" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-mono"></textarea></div>
                                 <div><label class="block text-xs font-bold text-slate-500 mb-1">自定义底部 Script 注入</label><textarea v-model="probeSys.custom_script" rows="2" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-mono"></textarea></div>
-                                <div><label class="block text-xs font-bold text-slate-500 mb-1">探针客户端上报间隔 (秒)</label><input type="number" v-model="probeSys.report_interval" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 mb-1">探针客户端上报间隔 (秒)</label><input type="number" v-model="probeSys.report_interval" min="10" max="300" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"></div>
+                                <div class="pt-2 border-t border-slate-200/70">
+                                    <p class="text-[10px] font-bold text-indigo-500 mb-2">⏱ 间隔设置（保存后下一次上报自动生效）</p>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">实时上报-激活 (秒)</label><input type="number" v-model="probeSys.interval_active" min="3" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">实时上报-空闲 (秒)</label><input type="number" v-model="probeSys.interval_idle" min="3" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">HTTP 兜底上报 (秒)</label><input type="number" v-model="probeSys.interval_http" min="3" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">心跳兜底 (秒)</label><input type="number" v-model="probeSys.interval_heartbeat" min="3" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">配置拉取兜底 (秒)</label><input type="number" v-model="probeSys.interval_config" min="3" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                        <div><label class="block text-[10px] font-bold text-slate-400 mb-1">前端离线判定 (秒)</label><input type="number" v-model="probeSys.interval_offline" min="10" max="3600" class="w-full bg-white/50 border p-2 rounded-xl text-sm font-medium text-slate-700"></div>
+                                    </div>
+                                    <p class="mt-2 text-[10px] text-slate-400">默认全部 10s；离线判定默认 60s。修改后点击下方「保存设置并生效」。</p>
+                                </div>
                             </div>
                             <div class="space-y-4">
                                 <label class="block text-sm font-bold text-slate-700 mb-2">👁️ 前台展示控制</label>
@@ -1092,10 +1104,10 @@
                 ]);
                 const pingNodes = reactive({ ct: [], cu: [], cm: [] });
 
-                const probeSys = reactive({ theme: 'theme1', is_public: 'true', site_title: 'Server Monitor Pro', custom_bg: '', custom_css: '', custom_head: '', custom_script: '', report_interval: '5', realtime_admin_interval: '5', realtime_public_interval: '10', realtime_idle_interval: '30', visits_total: '0', visits_today: '0', ping_node_ct: 'default', ping_node_cu: 'default', ping_node_cm: 'default', enable_popup: 'false', popup_content: '', tg_notify: 'false', tg_bot_token: '', tg_chat_id: '' });
-                const FALLBACK_DATA_INTERVAL = 60000;
-                const FALLBACK_PROBE_INTERVAL = 60000;
-                const FALLBACK_UI_PING_INTERVAL = 60000;
+                const probeSys = reactive({ theme: 'theme1', is_public: 'true', site_title: 'Server Monitor Pro', custom_bg: '', custom_css: '', custom_head: '', custom_script: '', report_interval: '5', realtime_admin_interval: '5', realtime_public_interval: '10', realtime_idle_interval: '30', visits_total: '0', visits_today: '0', ping_node_ct: 'default', ping_node_cu: 'default', ping_node_cm: 'default', enable_popup: 'false', popup_content: '', tg_notify: 'false', tg_bot_token: '', tg_chat_id: '', interval_active: '10', interval_idle: '10', interval_http: '10', interval_heartbeat: '10', interval_config: '10', interval_offline: '60' });
+                const FALLBACK_DATA_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
+                const FALLBACK_PROBE_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
+                const FALLBACK_UI_PING_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
                 const publicProbeServers = ref([]);
                 const probeView = ref(localStorage.getItem('monitor_preferred_view') || 'card');
                 const probeDetailId = ref(null); const probeDetail = ref({});
@@ -1227,7 +1239,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 watch(() => probeSys.custom_bg, updateCustomStyles);
                 watch(() => probeSys.custom_script, updateCustomScript);
 
-                const isOnline = (lastReport, realtimeState = '') => realtimeState ? realtimeState === 'online' : !!lastReport && (Date.now() - lastReport) < 60000;
+                const isOnline = (lastReport, realtimeState = '') => { if (realtimeState) return realtimeState === 'online'; const offlineSec = parseInt(probeSys.interval_offline) || 60; return !!lastReport && (Date.now() - lastReport) < offlineSec * 1000; };
                 const formatBytes = (bytes) => { const b = parseInt(bytes); if (isNaN(b) || b === 0) return '0 B'; const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(b) / Math.log(k)); return parseFloat((b / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]; };
                 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
                 const formatDate = (ts) => { if (!ts) return '永久'; const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2080,12 +2092,12 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 window.xuiNotifyRealtime = notifyRealtime;
                 const startPolling = () => { 
                     if (realtimeConnected.value) return;
-                    if (!dataTimer) { refreshData(); dataTimer = setInterval(() => { if (isLoggedIn.value && !document.hidden && activeTab.value !== 'probe') refreshData(); }, FALLBACK_DATA_INTERVAL); }
-                    if (!pingTimer) { sendUiPing(); pingTimer = setInterval(() => { if (isLoggedIn.value && !document.hidden) sendUiPing(); }, FALLBACK_UI_PING_INTERVAL); }
+                    if (!dataTimer) { refreshData(); dataTimer = setInterval(() => { if (isLoggedIn.value && !document.hidden && activeTab.value !== 'probe') refreshData(); }, FALLBACK_DATA_INTERVAL()); }
+                    if (!pingTimer) { sendUiPing(); pingTimer = setInterval(() => { if (isLoggedIn.value && !document.hidden) sendUiPing(); }, FALLBACK_UI_PING_INTERVAL()); }
                 };
                 const startProbePolling = () => { 
                     if ((realtimeConnected.value && isLoggedIn.value && role.value === 'admin') || publicRealtimeSocket?.readyState === WebSocket.OPEN) return;
-                    if (!probeTimer) { fetchProbeData(); probeTimer = setInterval(() => { if (!document.hidden && (!isLoggedIn.value || activeTab.value === 'probe')) fetchProbeData(); }, FALLBACK_PROBE_INTERVAL); }
+                    if (!probeTimer) { fetchProbeData(); probeTimer = setInterval(() => { if (!document.hidden && (!isLoggedIn.value || activeTab.value === 'probe')) fetchProbeData(); }, FALLBACK_PROBE_INTERVAL()); }
                 }
                 const stopProbePolling = () => { if (probeTimer) { clearInterval(probeTimer); probeTimer = null; } };
                 const stopPolling = () => { if (dataTimer) { clearInterval(dataTimer); dataTimer = null; } if (pingTimer) { clearInterval(pingTimer); pingTimer = null; } };

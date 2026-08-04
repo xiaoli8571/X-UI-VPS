@@ -1600,14 +1600,21 @@ export async function onRequest(context) {
         let fastMode = false; try { const uiActive = await db.prepare("SELECT ts FROM sys_config WHERE key = 'ui_active'").first(); if (uiActive && (nowMs - uiActive.ts < 90000)) fastMode = true; } catch(e) {}
         
         let reportInterval = 5; let pingCt = 'default'; let pingCu = 'default'; let pingCm = 'default';
+        // 可配置间隔（面板系统设置 → 间隔设置）：active/idle/http/heartbeat/config
+        let cfgActive = 10, cfgIdle = 10, cfgHttp = 10, cfgHeartbeat = 10, cfgConfig = 10;
         try { 
-            const { results } = await db.prepare("SELECT key, value FROM probe_settings WHERE key IN ('report_interval', 'ping_node_ct', 'ping_node_cu', 'ping_node_cm')").all(); 
+            const { results } = await db.prepare("SELECT key, value FROM probe_settings WHERE key IN ('report_interval', 'ping_node_ct', 'ping_node_cu', 'ping_node_cm', 'interval_active', 'interval_idle', 'interval_http', 'interval_heartbeat', 'interval_config')").all(); 
             if (results) {
                 results.forEach(r => {
                     if (r.key === 'report_interval') reportInterval = parseInt(r.value) || 5;
                     if (r.key === 'ping_node_ct') pingCt = r.value;
                     if (r.key === 'ping_node_cu') pingCu = r.value;
                     if (r.key === 'ping_node_cm') pingCm = r.value;
+                    if (r.key === 'interval_active') cfgActive = parseInt(r.value) || 10;
+                    if (r.key === 'interval_idle') cfgIdle = parseInt(r.value) || 10;
+                    if (r.key === 'interval_http') cfgHttp = parseInt(r.value) || 10;
+                    if (r.key === 'interval_heartbeat') cfgHeartbeat = parseInt(r.value) || 10;
+                    if (r.key === 'interval_config') cfgConfig = parseInt(r.value) || 10;
                 });
             }
         } catch(e) {}
@@ -1615,7 +1622,7 @@ export async function onRequest(context) {
         const effectiveInterval = Math.min(300, fastMode ? Math.max(10, reportInterval) : Math.max(45, reportInterval));
         let forceUpdate = 0;
         try { const f = await db.prepare("SELECT val FROM sys_config WHERE key = 'force_agent_update'").first(); if (f && f.val) forceUpdate = parseInt(f.val) || 0; } catch(e){}
-        return Response.json({ success: true, fast_mode: fastMode, interval: effectiveInterval, ping_ct: pingCt, ping_cu: pingCu, ping_cm: pingCm, force_update: forceUpdate });
+        return Response.json({ success: true, fast_mode: fastMode, interval: effectiveInterval, ping_ct: pingCt, ping_cu: pingCu, ping_cm: pingCm, force_update: forceUpdate, interval_active: cfgActive, interval_idle: cfgIdle, interval_http: cfgHttp, interval_heartbeat: cfgHeartbeat, interval_config: cfgConfig });
      } catch (err) {
         return Response.json({ error: "REPORT_ERR: " + (err && err.message ? err.message : String(err)) }, { status: 500 });
      }

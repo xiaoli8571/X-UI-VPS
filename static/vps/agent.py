@@ -403,6 +403,9 @@ last_http_report = 0
 # WebSocket remains the primary five-second live channel. HTTP fallback is
 # throttled to 5 minutes so idle agents don't burn Workers quota.
 REALTIME_HTTP_INTERVAL = 10
+# 面板可动态配置的兜底间隔（report 响应更新）
+HEARTBEAT_INTERVAL_FALLBACK = 10
+CONFIG_INTERVAL_FALLBACK = 10
 
 # 🌟 增加全局 Ping 状态缓存锁，防止在非测速轮次上传 '0' 导致前端图表归零
 last_pings = {"ct": "0", "cu": "0", "cm": "0", "bd": "0"}
@@ -1182,6 +1185,24 @@ def report_status(current_nodes, argo_urls, force_http=False, allow_http=True):
         for key in ("ct", "cu", "cm"):
             value = resp_data.get(f"ping_{key}")
             dynamic_ping[key] = None if not value or value == "default" else value
+        # 面板系统设置可配置的间隔（动态更新，替代硬编码 10s）
+        global REALTIME_STATUS_ACTIVE_INTERVAL, REALTIME_STATUS_IDLE_INTERVAL, REALTIME_HTTP_INTERVAL, HEARTBEAT_INTERVAL_FALLBACK, CONFIG_INTERVAL_FALLBACK
+        def _clamp_interval(v, default, lo=3, hi=3600):
+            try:
+                n = int(v)
+                return max(lo, min(hi, n))
+            except (TypeError, ValueError):
+                return default
+        if "interval_active" in resp_data:
+            REALTIME_STATUS_ACTIVE_INTERVAL = _clamp_interval(resp_data["interval_active"], 10)
+        if "interval_idle" in resp_data:
+            REALTIME_STATUS_IDLE_INTERVAL = _clamp_interval(resp_data["interval_idle"], 10)
+        if "interval_http" in resp_data:
+            REALTIME_HTTP_INTERVAL = _clamp_interval(resp_data["interval_http"], 10)
+        if "interval_heartbeat" in resp_data:
+            HEARTBEAT_INTERVAL_FALLBACK = _clamp_interval(resp_data["interval_heartbeat"], 10)
+        if "interval_config" in resp_data:
+            CONFIG_INTERVAL_FALLBACK = _clamp_interval(resp_data["interval_config"], 10)
         return True
     except Exception as error:
         print(f"[agent] status report failed: {error}", flush=True)
@@ -1455,7 +1476,7 @@ if __name__ == "__main__":
             elif realtime_channel and realtime_channel.ever_connected and time.time() - realtime_channel.last_disconnected < 30:
                 heartbeat_interval = max(1, 30 - (time.time() - realtime_channel.last_disconnected))
             else:
-                heartbeat_interval = 10
+                heartbeat_interval = HEARTBEAT_INTERVAL_FALLBACK
             heartbeat_wakeup.wait(timeout=max(1, heartbeat_interval - min(heartbeat_interval - 1, elapsed)))
             heartbeat_wakeup.clear()
 
@@ -1493,5 +1514,5 @@ if __name__ == "__main__":
         elapsed = time.monotonic() - loop_started
         if elapsed > 20:
             print(f"[agent] slow loop completed in {elapsed:.1f}s", flush=True)
-        config_interval = REALTIME_HTTP_INTERVAL if realtime_channel and realtime_channel.connected else 10
+        config_interval = REALTIME_HTTP_INTERVAL if realtime_channel and realtime_channel.connected else CONFIG_INTERVAL_FALLBACK
         config_wakeup.wait(timeout=max(1, config_interval - min(config_interval - 1, elapsed)))
