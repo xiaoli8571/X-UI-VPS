@@ -1095,10 +1095,10 @@
                 ]);
                 const pingNodes = reactive({ ct: [], cu: [], cm: [] });
 
-                const probeSys = reactive({ theme: 'theme1', is_public: 'true', site_title: 'Server Monitor Pro', custom_bg: '', custom_css: '', custom_head: '', custom_script: '', report_interval: '5', realtime_admin_interval: '5', realtime_public_interval: '10', realtime_idle_interval: '30', visits_total: '0', visits_today: '0', ping_node_ct: 'default', ping_node_cu: 'default', ping_node_cm: 'default', enable_popup: 'false', popup_content: '', tg_notify: 'false', tg_bot_token: '', tg_chat_id: '', interval_active: '10', interval_idle: '10', interval_http: '10', interval_heartbeat: '10', interval_config: '10', interval_offline: '60' });
-                const FALLBACK_DATA_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
-                const FALLBACK_PROBE_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
-                const FALLBACK_UI_PING_INTERVAL = () => (parseInt(probeSys.interval_offline) || 60) * 1000;
+                const probeSys = reactive({ theme: 'theme1', is_public: 'true', site_title: 'Server Monitor Pro', custom_bg: '', custom_css: '', custom_head: '', custom_script: '', report_interval: '5', realtime_admin_interval: '5', realtime_public_interval: '10', realtime_idle_interval: '30', visits_total: '0', visits_today: '0', ping_node_ct: 'default', ping_node_cu: 'default', ping_node_cm: 'default', enable_popup: 'false', popup_content: '', tg_notify: 'false', tg_bot_token: '', tg_chat_id: '', interval_active: '10', interval_idle: '10', interval_http: '10', interval_heartbeat: '10', interval_config: '10', interval_offline: '180' });
+                const FALLBACK_DATA_INTERVAL = () => (parseInt(probeSys.interval_offline) || 180) * 1000;
+                const FALLBACK_PROBE_INTERVAL = () => (parseInt(probeSys.interval_offline) || 180) * 1000;
+                const FALLBACK_UI_PING_INTERVAL = () => (parseInt(probeSys.interval_offline) || 180) * 1000;
                 const publicProbeServers = ref([]);
                 const probeView = ref(localStorage.getItem('monitor_preferred_view') || 'card');
                 const probeDetailId = ref(null); const probeDetail = ref({});
@@ -1230,7 +1230,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 watch(() => probeSys.custom_bg, updateCustomStyles);
                 watch(() => probeSys.custom_script, updateCustomScript);
 
-                const isOnline = (lastReport, realtimeState = '') => { if (realtimeState) return realtimeState === 'online'; const offlineSec = parseInt(probeSys.interval_offline) || 60; return !!lastReport && (Date.now() - lastReport) < offlineSec * 1000; };
+                const isOnline = (lastReport, realtimeState = '') => { if (realtimeState) return realtimeState === 'online'; const offlineSec = parseInt(probeSys.interval_offline) || 180; return !!lastReport && (Date.now() - lastReport) < offlineSec * 1000; };
                 const formatBytes = (bytes) => { const b = parseInt(bytes); if (isNaN(b) || b === 0) return '0 B'; const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(b) / Math.log(k)); return parseFloat((b / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]; };
                 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
                 const formatDate = (ts) => { if (!ts) return '永久'; const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
