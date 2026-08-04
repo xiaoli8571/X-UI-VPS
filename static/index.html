@@ -867,14 +867,14 @@
 
 
                     <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
-                        <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">⚡ Realtime 状态频率策略</h3>
-                        <p class="text-xs text-slate-500 mb-5 font-medium">全局影响所有 VPS 的 Core 与 Proxy Agent。节点配置、出口切换、应用结果、上线和掉线仍会立即推送。</p>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <h3 class="text-xl font-black text-slate-800 mb-2 flex items-center gap-2">⚡ Realtime 状态频率策略 <span class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-bold">仅 Cloudflare 版</span></h3>
+                        <p class="text-xs text-slate-500 mb-3 font-medium">自托管 VPS 版未配置 REALTIME_URL，本策略不生效；Agent 上报与推送频率请使用下方「⏱ 间隔设置」。</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 opacity-50 pointer-events-none select-none">
                             <div><label class="block text-xs font-bold text-slate-500 mb-1">管理员后台查看 (秒)</label><input type="number" v-model.number="probeSys.realtime_admin_interval" min="5" max="60" step="1" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"><p class="mt-1 text-[10px] text-slate-400">范围 5-60 秒，默认 5 秒</p></div>
                             <div><label class="block text-xs font-bold text-slate-500 mb-1">公开探针查看 (秒)</label><input type="number" v-model.number="probeSys.realtime_public_interval" min="10" max="120" step="1" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"><p class="mt-1 text-[10px] text-slate-400">范围 10-120 秒，默认 10 秒</p></div>
                             <div><label class="block text-xs font-bold text-slate-500 mb-1">无人查看空闲 (秒)</label><input type="number" v-model.number="probeSys.realtime_idle_interval" min="30" max="600" step="1" class="w-full bg-white/50 border p-2.5 rounded-xl text-sm font-medium text-slate-700"><p class="mt-1 text-[10px] text-slate-400">范围 30-600 秒，默认 30 秒</p></div>
                         </div>
-                        <p class="mt-4 text-[10px] font-medium text-amber-600">要求：公开探针频率不得快于管理员后台；空闲频率不得快于公开探针。修改后点击下方“立即生效配置”。</p>
+                        <p class="mt-4 text-[10px] font-medium text-amber-600">该区块在自托管 VPS 版已停用（灰色不可编辑），仅保留给 Cloudflare Workers + Durable Object 版使用。</p>
                     </div>
 
                     <div class="bg-white/60 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white shadow-xl shadow-slate-200/40">
