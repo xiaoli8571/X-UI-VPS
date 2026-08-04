@@ -2042,6 +2042,9 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 // ---- WebSSH / SSH 凭据（全局弹窗逻辑见文件底部）----
                 const openWebSsh = (vps) => window.openWebSsh(vps);
                 const openSshSettings = (vps) => window.openSshSettings(vps);
+                const openChangeIpModal = (vps) => window.openChangeIpModal(vps);
+                const closeChangeIp = () => window.closeChangeIp();
+                const saveChangeIp = () => window.saveChangeIp();
                 
                 const addThirdPartySubscription = async () => {
                     if (!newThirdParty.url) return alert('请填写订阅链接！');
