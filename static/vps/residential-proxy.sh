@@ -164,7 +164,7 @@ setup_tun() {
     echo "[1.5/4] 检查 TUN/TAP 设备..."
     if [ -e /dev/net/tun ]; then
         echo "[+] /dev/net/tun 已存在"
-        return
+        return 0
     fi
     echo "[*] /dev/net/tun 不存在，尝试创建..."
     mkdir -p /dev/net
@@ -177,15 +177,17 @@ setup_tun() {
         fi
     fi
     if [ ! -e /dev/net/tun ]; then
-        echo "❌ 错误: /dev/net/tun 不存在，无法创建 TUN 设备。"
+        echo "⚠️ 警告: /dev/net/tun 不存在，无法创建 TUN 设备。"
         echo "    可能原因："
         echo "    1. 内核未编译 tun 模块"
         echo "    2. 容器/虚拟化环境未开放 /dev/net/tun"
         echo "    3. 需要宿主机开启 TUN 设备"
-        echo "    请先在宿主机或控制台开启 TUN/TAP 支持后重试。"
-        exit 1
+        echo "    将自动跳过住宅代理组件（agent + sing-box 不受影响）。"
+        echo "    如需住宅代理功能，请在宿主机或控制台开启 TUN/TAP 后重试。"
+        return 1
     fi
     echo "[+] TUN/TAP 设备已就绪"
+    return 0
 }
 
 download_agents() {
@@ -392,7 +394,25 @@ main() {
 
     install_dependencies
     setup_sysctl
-    setup_tun
+    # TUN 不可用时自动跳过住宅代理（agent + sing-box 不受影响）
+    if ! setup_tun; then
+        echo ""
+        echo "=========================================================="
+        echo "[!] 当前环境不支持 TUN/TAP，已跳过住宅IP代理组件。"
+        echo "    agent + sing-box 代理服务正常可用。"
+        echo "    如需住宅代理，请在宿主机/控制台开启 TUN/TAP 后重新安装。"
+        echo "=========================================================="
+        if [ "$INIT_SYS" = "systemd" ]; then
+            systemctl restart xui-agent 2>/dev/null || true
+        elif [ "$INIT_SYS" = "openrc" ]; then
+            rc-service xui-agent restart 2>/dev/null || true
+        fi
+        restore_core_services
+        INSTALL_SUCCESS=1
+        rm -rf "$BACKUP_DIR"
+        trap - EXIT INT TERM
+        exit 0
+    fi
     download_agents
     install_service
     if [ "$INIT_SYS" = "systemd" ]; then
