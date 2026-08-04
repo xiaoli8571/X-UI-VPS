@@ -329,59 +329,15 @@ EOF
     systemctl start xui-agent
 fi
 
-echo "[7/7] 🌐 部署住宅 IP 主备双隧道代理..."
+# 住宅 IP 主备双隧道代理已移除（精简）：agent 安装不再部署住宅代理组件
+echo "[7/7] ✅ 跳过住宅 IP 代理（已精简移除）"
 
-# ==========================================
-# TUN 支持检测：宿主机/容器未开启 TUN 时自动跳过住宅代理，
-# 仅保留 agent + sing-box，保证基础代理服务可用。
-# ==========================================
-check_tun_support() {
-    if [ -e /dev/net/tun ]; then
-        echo "  ✅ /dev/net/tun 已存在，支持住宅代理部署。"
-        return 0
-    fi
-    # /dev/net/tun 不存在时尝试加载内核模块并创建
-    mkdir -p /dev/net 2>/dev/null || true
-    modprobe tun 2>/dev/null || true
-    if grep -Eq '(^|[[:space:]])tun$' /proc/misc 2>/dev/null; then
-        [ -e /dev/net/tun ] || mknod /dev/net/tun c 10 200 2>/dev/null || true
-        chmod 600 /dev/net/tun 2>/dev/null || true
-    fi
-    if [ -e /dev/net/tun ]; then
-        echo "  ✅ TUN 设备创建成功，支持住宅代理部署。"
-        return 0
-    fi
-    echo "  ⚠️ 当前环境不支持 TUN/TAP（宿主机未开启 TUN，常见于容器/小鸡）。"
-    echo "     自动跳过住宅代理安装，仅保留 agent + sing-box 代理服务。"
-    echo "     如需住宅代理功能，请在宿主机/控制台开启 TUN/TAP 后重试。"
-    return 1
-}
-
-if check_tun_support; then
-    PROXY_INSTALLER_URL="${API_URL}/api/agent_update?ip=${VPS_IP}&component=proxy-installer"
-    PROXY_INSTALLER_TEMP="/opt/xui/residential-proxy.sh.download"; PROXY_INSTALLER_HEADERS="/opt/xui/residential-proxy.sh.headers"
-    cleanup_proxy_installer() { rm -f "$PROXY_INSTALLER_TEMP" "$PROXY_INSTALLER_HEADERS"; }
-    curl -fsSL --retry 3 --retry-delay 2 -A "$CURL_USER_AGENT" -D "$PROXY_INSTALLER_HEADERS" -H "Authorization: ${TOKEN}" "$PROXY_INSTALLER_URL" -o "$PROXY_INSTALLER_TEMP"
-    EXPECTED_INSTALLER_SHA=$(tr -d '\r' < "$PROXY_INSTALLER_HEADERS" | awk '/^[Xx]-[Aa]gent-[Ss][Hh][Aa]256:/ {print tolower($2)}' | tail -n 1)
-    verify_agent_manifest proxy-installer "$PROXY_INSTALLER_TEMP" "$PROXY_INSTALLER_HEADERS" || { echo "❌ residential-proxy.sh 更新清单校验失败"; cleanup_proxy_installer; }
-    bash -n "$PROXY_INSTALLER_TEMP"
-    chmod 700 "$PROXY_INSTALLER_TEMP"
-    # 住宅代理安装失败不阻断整体安装（agent + sing-box 已就绪）
-    if bash "$PROXY_INSTALLER_TEMP" --domain "$API_URL" --controller "${PROXY_API_URL:-$API_URL}" --ip "$VPS_IP" --token "$TOKEN"; then
-        echo "  ✅ 住宅 IP 双隧道代理部署完成。"
-    else
-        echo "  ⚠️ 住宅代理安装未完成（不影响 agent + sing-box 运行），可稍后重试。"
-    fi
-    cleanup_proxy_installer
-else
-    echo "  ➡️ 已自动跳过住宅代理组件。"
-fi
 INSTALL_SUCCESS=1
 rm -rf "$BACKUP_DIR"
 trap - EXIT INT TERM
 
 echo "=========================================="
-echo " 🎉 XUI + 住宅 IP 双隧道代理部署成功！"
+echo " 🎉 XUI Agent 部署成功！"
 echo " 节点 IP: ${VPS_IP}"
 echo " 系统架构: ${OS}"
 echo "=========================================="

@@ -168,7 +168,7 @@
         .stats-row { display: contents; }
         .theme12 .card-left, .theme12 .card-right { display: contents !important; }
 
-        /* ================= Proxy Controller 双活引擎总控 ================= */
+        /* ================= 主控逻辑 ================= */
         .pc-body { font-family: 'Inter', sans-serif; }
         .pc-font-mono { font-family: 'JetBrains Mono', monospace; }
         .pc-body::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -407,8 +407,6 @@
                     <template v-if="role === 'admin'">
                         <button @click="activeTab = 'nodes'" :class="activeTab === 'nodes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">服务器与节点</button>
                         <button @click="activeTab = 'users'" :class="activeTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">用户与授权</button>
-                        <button @click="activeTab = 'proxy'" :class="activeTab === 'proxy' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🌐 住宅IP代理</button>
-                        <button @click="activeTab = 'services'" :class="activeTab === 'services' ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🧩 第三方服务</button>
                         <button @click="activeTab = 'thirdparty'" :class="activeTab === 'thirdparty' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🔗 第三方订阅</button>
                         <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">⚙️ 系统设置</button>
                         <button @click="activeTab = 'podman'" :class="activeTab === 'podman' ? 'bg-white text-cyan-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'" class="xui-tab-button xui-admin-tab shrink-0 whitespace-nowrap px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all text-[11px] sm:text-xs lg:text-sm">🐳 Podman 管理</button>
@@ -701,192 +699,8 @@
                 </div>
             </div>
 
-            <!-- 住宅IP代理控制器 (双活引擎总控 - 已内联) -->
-            <div v-if="isLoggedIn && role === 'admin' && activeTab === 'services'" class="max-w-5xl mx-auto px-4 py-8 space-y-6">
-                <div class="bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-violet-100/40 p-7 md:p-9">
-                    <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center text-2xl">🧩</div>
-                        <div><h2 class="text-2xl font-black text-slate-800">第三方服务</h2><p class="mt-1 text-sm font-medium text-slate-500">以下服务由第三方提供，点击将在新标签页打开。</p></div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <a href="https://webssh.bytevirt.net/?encoding=utf-8&" target="_blank" rel="noopener noreferrer" class="group bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white p-7 shadow-xl shadow-slate-200/40 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyan-100/60">
-                        <div class="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-xl mb-5">⌨</div>
-                        <h3 class="text-lg font-black text-slate-800">WebSSH 服务</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-slate-500">在浏览器中打开第三方 SSH 终端服务。</p>
-                        <span class="mt-6 inline-flex items-center gap-2 text-sm font-black text-cyan-600">打开服务 <span class="transition-transform group-hover:translate-x-1">→</span></span>
-                    </a>
-                    <a href="https://derouter.ai?ref=0oZZ1HVc" target="_blank" rel="noopener noreferrer" class="group bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white p-7 shadow-xl shadow-slate-200/40 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-violet-100/60">
-                        <div class="w-12 h-12 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center text-xl mb-5">AI</div>
-                        <h3 class="text-lg font-black text-slate-800">AI 中转服务</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-slate-500">访问 Derouter AI 中转服务。</p>
-                        <span class="mt-6 inline-flex items-center gap-2 text-sm font-black text-violet-600">打开服务 <span class="transition-transform group-hover:translate-x-1">→</span></span>
-                    </a>
-                    <a href="https://bytevirt.com/aff.php?aff=209" target="_blank" rel="noopener noreferrer" class="group bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white p-7 shadow-xl shadow-slate-200/40 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-100/60">
-                        <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mb-5">VPS</div>
-                        <h3 class="text-lg font-black text-slate-800">ByteVirt VPS</h3>
-                        <p class="mt-2 text-sm leading-relaxed text-slate-500">访问 ByteVirt VPS 服务页面。</p>
-                        <span class="mt-6 inline-flex items-center gap-2 text-sm font-black text-emerald-600">打开服务 <span class="transition-transform group-hover:translate-x-1">→</span></span>
-                    </a>
-                </div>
-                <p class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-xs font-medium leading-relaxed text-amber-700">第三方服务与 XUI 无账号、凭据或数据传递关系。使用 WebSSH 时请自行确认服务可信度，并手动填写服务器连接信息。</p>
-            </div>
-
-            <div v-if="isLoggedIn && role === 'admin' && activeTab === 'proxy'" class="pc-body min-h-screen bg-[#090E17] text-slate-300 relative overflow-x-hidden selection:bg-indigo-500/30">
-                <div class="fixed top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full pointer-events-none z-0"></div>
-                <div class="fixed bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none z-0"></div>
-
-                <div class="max-w-7xl mx-auto p-6 relative z-10">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
-                        <div>
-                            <h1 class="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 tracking-tight drop-shadow-sm">Proxy Controller</h1>
-                            <p class="text-slate-400 mt-2 text-sm flex items-center gap-2">
-                                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-                                 鉴权提取 API: <a href="javascript:void(0)" @click="fetchApi('/api/proxy/proxies').then(r=>r.text()).then(t=>{const w=window.open('','_blank');w.document.write('<pre>'+t+'</pre>')})" class="text-indigo-400 hover:text-indigo-300 border-b border-indigo-400/30 hover:border-indigo-300 transition-colors cursor-pointer">/api/proxy/proxies</a>
-                            </p>
-                        </div>
-
-                        <div class="flex flex-col gap-3 w-full md:w-auto">
-                            <div class="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-xl overflow-hidden shadow-lg">
-                                <div class="bg-slate-800/50 px-4 py-2 border-b border-slate-700/50 flex items-center gap-2">
-                                    <div class="flex gap-1.5">
-                                        <div class="w-3 h-3 rounded-full bg-rose-500/80"></div>
-                                        <div class="w-3 h-3 rounded-full bg-amber-500/80"></div>
-                                        <div class="w-3 h-3 rounded-full bg-emerald-500/80"></div>
-                                    </div>
-                                    <span class="text-xs text-slate-400 font-mono ml-2">VPS 纳管命令 (Root)</span>
-                                </div>
-                                <div id="agent-cmd" class="p-3 bg-[#0D1117] text-sm pc-font-mono text-emerald-400 select-all overflow-x-auto whitespace-nowrap">住宅代理已合并到服务器 Full Deploy Command，无需二次安装。</div>
-                            </div>
-
-                            <div class="flex gap-4 text-xs font-mono">
-                                <div class="bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 flex-1 flex justify-between items-center shadow-sm">
-                                    <span class="text-slate-500">控制权限</span>
-                                    <span class="text-indigo-300 font-bold ml-4">仅管理员</span>
-                                </div>
-                                <div class="bg-slate-900/50 border border-slate-800 rounded-lg px-3 py-2 flex-1 flex justify-between items-center shadow-sm">
-                                    <span class="text-slate-500">代理凭证</span>
-                                    <span class="text-amber-300 font-bold ml-4">读取 Pages 环境变量</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-                        <div class="lg:col-span-1 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/20">
-                            <div class="flex items-center gap-2 mb-4">
-                                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                <h2 class="text-lg font-bold text-slate-200">全量国家代码库</h2>
-                            </div>
-                            <p class="text-xs text-slate-500 mb-4 leading-relaxed">系统已合并预设代码及实时的网络探测代码，提供最全面的目标锁定选择。</p>
-                            <div id="countries-list" class="flex flex-wrap gap-2 max-h-[160px] overflow-y-auto pr-1">
-                                <span class="text-slate-600 text-sm animate-pulse">正在同步数据库...</span>
-                            </div>
-                        </div>
-
-                        <div class="lg:col-span-3 bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 shadow-xl shadow-black/20 flex flex-col justify-center relative overflow-hidden">
-                            <div class="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                                <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                            </div>
-
-                            <div class="mb-6 relative z-10">
-                                <h2 class="text-2xl font-bold text-slate-100 tracking-wide mb-1 flex items-center gap-2">主备双活调度引擎 <span class="bg-indigo-500/20 text-indigo-400 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-indigo-500/30">Active-Standby</span></h2>
-                                <p class="text-sm text-slate-400">单路端口锁定，内置主备双路隧道 (tun_main / tun_backup)，通道死活将由软开关瞬间接管。</p>
-                            </div>
-
-                            <div class="flex flex-wrap items-center bg-slate-950/50 border border-slate-800/80 rounded-xl p-5 relative z-10 gap-y-4">
-                                <div class="flex items-center gap-3 mr-3 border-r border-slate-700/50 pr-4">
-                                    <span class="text-slate-400 text-sm font-medium whitespace-nowrap">目标地区:</span>
-                                    <input type="text" id="slot-cfg-0" value="JP" maxlength="2" class="bg-slate-900 border border-slate-700 rounded-lg py-2 w-16 text-white font-bold text-lg uppercase text-center focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all shadow-inner" placeholder="US" />
-                                </div>
-
-                                <div class="flex items-center gap-3 mr-4">
-                                    <span class="text-slate-400 text-sm font-medium whitespace-nowrap">服务端口:</span>
-                                    <input type="number" id="slot-port" value="7920" min="1024" max="65535" class="bg-slate-900 border border-slate-700 rounded-lg py-2 w-24 text-white font-bold text-lg text-center focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all shadow-inner" placeholder="7920" />
-                                </div>
-
-                                <button onclick="pcSaveConfig()" class="group relative px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold shadow-lg shadow-blue-900/20 hover:shadow-indigo-900/40 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden ml-auto">
-                                    <div class="absolute inset-0 bg-white/20 group-hover:translate-x-full -translate-x-full transform transition-transform duration-300 ease-in-out skew-x-12"></div>
-                                    <span class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                                        下发策略
-                                    </span>
-                                </button>
-
-                                <div class="h-8 w-px bg-slate-800 mx-2 hidden sm:block"></div>
-
-                                <button onclick="pcSwitchIP()" class="group relative px-6 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold shadow-lg shadow-purple-900/20 hover:shadow-pink-900/40 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
-                                    <div class="absolute inset-0 bg-white/20 group-hover:translate-x-full -translate-x-full transform transition-transform duration-300 ease-in-out skew-x-12"></div>
-                                    <span class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                        强制更换 IP
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-xl overflow-hidden shadow-black/20 mb-8">
-                        <div class="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                            <h3 class="font-semibold text-slate-200 flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"></div>
-                                活跃节点矩阵
-                            </h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
-                                        <th class="py-4 px-6 font-medium w-1/5">母机宿主 IP</th>
-                                        <th class="py-4 px-6 font-medium">主备双路出口状态 (Active / Standby)</th>
-                                        <th class="py-4 px-6 font-medium w-32">心跳延迟</th>
-                                        <th class="py-4 px-6 font-medium text-right w-24">负载率</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pc-nodes-table" class="divide-y divide-slate-800/50 text-sm">
-                                    <tr><td colspan="4" class="py-12 text-center text-slate-500">正在与 D1 数据库建立量子纠缠...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div id="pc-ip-score-section" style="display: none;" class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-xl overflow-hidden shadow-black/20 mb-8">
-                        <div class="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-                            <h3 class="font-semibold text-slate-200 flex items-center gap-2">
-                                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                原生深度质检报告 (testisp.info)
-                            </h3>
-                            <a id="pc-ip-score-link" href="#" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                                原版页面 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                            </a>
-                        </div>
-
-                        <div id="pc-native-score-container" class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 bg-[#090E17]">
-                            <div class="col-span-full py-16 flex flex-col items-center justify-center text-slate-500">
-                                <svg class="animate-spin h-8 w-8 text-indigo-500 mb-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                <span>穿透请求中，正在构建原生质检报告...</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-xl overflow-hidden shadow-black/20 pb-8">
-                        <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/80 flex justify-between items-center">
-                            <span class="text-xs text-slate-400 font-mono flex items-center gap-2">
-                                <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 17h16a2 2 0 002-2V5a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                                VPS 实时运行日志 (Auto-Sync)
-                            </span>
-                            <span class="flex gap-1.5">
-                                <div class="w-3 h-3 rounded-full bg-rose-500/80 shadow-[0_0_5px_rgba(244,63,94,0.5)]"></div>
-                                <div class="w-3 h-3 rounded-full bg-amber-500/80 shadow-[0_0_5px_rgba(245,158,11,0.5)]"></div>
-                                <div class="w-3 h-3 rounded-full bg-emerald-500/80 shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
-                            </span>
-                        </div>
-                        <div class="p-4 h-64 overflow-y-auto bg-[#0D1117] pc-font-mono text-[13px] leading-relaxed text-slate-300" id="pc-terminal-output">
-                            <div class="text-slate-500 animate-pulse">等待 VPS 心跳回传日志数据...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- 已移除：住宅IP代理控制器 与 外部服务外链区块（精简） -->
+            <!-- 精简标记 -->
 
             <div v-if="role === 'user' && activeTab === 'dashboard'" class="space-y-8">
                 <div class="bg-white/60 backdrop-blur-xl p-10 md:p-16 rounded-[3rem] shadow-2xl border border-white text-center relative overflow-hidden">
@@ -1283,7 +1097,7 @@
                 
                 const showWelcomePopup = ref(false);
 
-                watch(activeTab, (val) => { localStorage.setItem('monitor_preferred_tab', val); if (val === 'proxy' && isLoggedIn.value) { loadProxyPool(); setTimeout(pcInitProxy, 0); } else { pcStopProxy(); } if (val === 'thirdparty') { loadThirdPartySubscriptions(); loadManualNodes(); } if (val === 'settings' && isLoggedIn.value && role.value === 'admin') { loadAdminProbeServers(); loadDomainAlerts(); } if (val === 'probe') { updateCustomStyles(); updateCustomScript(probeSys.custom_script); } else { document.body.className = ''; document.getElementById('xui-custom-styles')?.remove(); document.getElementById('xui-custom-head')?.remove(); updateCustomScript(''); } });
+                watch(activeTab, (val) => { localStorage.setItem('monitor_preferred_tab', val); if (val === 'thirdparty') { loadThirdPartySubscriptions(); loadManualNodes(); } if (val === 'settings' && isLoggedIn.value && role.value === 'admin') { loadAdminProbeServers(); loadDomainAlerts(); } if (val === 'probe') { updateCustomStyles(); updateCustomScript(probeSys.custom_script); } else { document.body.className = ''; document.getElementById('xui-custom-styles')?.remove(); document.getElementById('xui-custom-head')?.remove(); updateCustomScript(''); } });
                 watch(probeView, (val) => localStorage.setItem('monitor_preferred_view', val));
 
                 const hasCustomCssFlag = computed(() => {
@@ -2170,13 +1984,13 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                         if (normalizeRealtimeKey(probeDetail.value?.id) === key && timestamp >= Number(probeDetail.value?._realtime_ts || probeDetail.value?.last_updated || 0)) { Object.assign(probeDetail.value, { cpu: core.cpu, ram: core.mem, disk: core.disk, load_avg: core.load, uptime: core.uptime, net_in_speed: core.net_in_speed, net_out_speed: core.net_out_speed, tcp_conn: core.tcp_conn, udp_conn: core.udp_conn, last_updated: timestamp, realtime_state: snapshot.core_state, _realtime_ts: timestamp }); updateProbeDetailCharts(probeDetail.value); }
                     }
                     window.xuiRealtimeProxySnapshots = window.xuiRealtimeProxySnapshots || {};
-                    if (snapshot.proxy || snapshot.proxy_state || snapshot.proxy_config_result) { const previous = window.xuiRealtimeProxySnapshots[snapshot.ip] || {}; window.xuiRealtimeProxySnapshots[snapshot.ip] = { ...previous, ...snapshot, proxy: snapshot.proxy || previous.proxy }; if (activeTab.value === 'proxy') setTimeout(pcFetchNodes, 0); }
+                    if (snapshot.proxy || snapshot.proxy_state || snapshot.proxy_config_result) { const previous = window.xuiRealtimeProxySnapshots[snapshot.ip] || {}; window.xuiRealtimeProxySnapshots[snapshot.ip] = { ...previous, ...snapshot, proxy: snapshot.proxy || previous.proxy }; }
                 };
                 const scheduleRealtimeFallback = () => {
                     clearTimeout(realtimeFallbackTimer);
                     if (!realtimeDisconnectedAt) realtimeDisconnectedAt = Date.now();
                     const remaining = Math.max(0, 30000 - (Date.now() - realtimeDisconnectedAt));
-                    realtimeFallbackTimer = setTimeout(() => { if (!document.hidden && !realtimeConnected.value && isLoggedIn.value) { stopPolling(); startPolling(); startProbePolling(); if (activeTab.value === 'proxy') pcInitProxy(); } }, remaining);
+                    realtimeFallbackTimer = setTimeout(() => { if (!document.hidden && !realtimeConnected.value && isLoggedIn.value) { stopPolling(); startPolling(); startProbePolling(); } }, remaining);
                 };
                 const connectRealtime = async () => {
                     if (!isLoggedIn.value || role.value !== 'admin' || !realtimeUrl.value || document.hidden) return;
@@ -2196,7 +2010,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                         realtimeSocket = socket;
                         clearTimeout(realtimeConnectTimer);
                         realtimeConnectTimer = setTimeout(() => { if (realtimeSocket === socket && socket.readyState === WebSocket.CONNECTING) socket.close(); }, 30000);
-                        socket.onopen = () => { if (realtimeSocket !== socket || generation !== realtimeGeneration) return socket.close(); clearTimeout(realtimeConnectTimer); realtimeDisconnectedAt = 0; realtimeRetryDelay = 5000; lastRealtimePing = Date.now(); realtimeConnected.value = true; window.xuiRealtimeConnected = true; clearTimeout(realtimeFallbackTimer); publicRealtimeSocket?.close(); refreshData(); stopPolling(); stopProbePolling(); pcStopProxy(); clearInterval(realtimePingTimer); realtimePingTimer = setInterval(() => { const now = Date.now(); if (realtimeSocket?.readyState === WebSocket.OPEN && now - lastRealtimePing >= 30000) { realtimeSocket.send('ping'); lastRealtimePing = now; } servers.value.forEach(server => { if (server.realtime_state === 'online' && now - server.last_report > 120000) server.realtime_state = 'stale'; }); publicProbeServers.value.forEach(server => { if (server.realtime_state === 'online' && server.last_updated && now - server.last_updated > 120000) server.realtime_state = 'stale'; }); if (activeTab.value === 'proxy') pcFetchNodes(); }, 5000); };
+                        socket.onopen = () => { if (realtimeSocket !== socket || generation !== realtimeGeneration) return socket.close(); clearTimeout(realtimeConnectTimer); realtimeDisconnectedAt = 0; realtimeRetryDelay = 5000; lastRealtimePing = Date.now(); realtimeConnected.value = true; window.xuiRealtimeConnected = true; clearTimeout(realtimeFallbackTimer); publicRealtimeSocket?.close(); refreshData(); stopPolling(); stopProbePolling(); clearInterval(realtimePingTimer); realtimePingTimer = setInterval(() => { const now = Date.now(); if (realtimeSocket?.readyState === WebSocket.OPEN && now - lastRealtimePing >= 30000) { realtimeSocket.send('ping'); lastRealtimePing = now; } servers.value.forEach(server => { if (server.realtime_state === 'online' && now - server.last_report > 120000) server.realtime_state = 'stale'; }); publicProbeServers.value.forEach(server => { if (server.realtime_state === 'online' && server.last_updated && now - server.last_updated > 120000) server.realtime_state = 'stale'; }); }, 5000); };
                         socket.onmessage = event => { if (realtimeSocket !== socket) return; try { const message = JSON.parse(event.data); if (message.type === 'snapshot') (message.data || []).forEach(applyRealtimeSnapshot); else if (message.type === 'patch') applyRealtimeSnapshot(message.data); } catch(e) {} };
                         socket.onclose = () => { if (realtimeSocket !== socket) return; clearTimeout(realtimeConnectTimer); clearInterval(realtimePingTimer); realtimeConnected.value = false; window.xuiRealtimeConnected = false; realtimeSocket = null; if (isLoggedIn.value && !document.hidden) { scheduleRealtimeFallback(); clearTimeout(realtimeReconnectTimer); const delay = realtimeRetryDelay; realtimeRetryDelay = Math.min(realtimeRetryDelay * 2, 300000); realtimeReconnectTimer = setTimeout(connectRealtime, delay); } };
                         socket.onerror = () => socket.close();
@@ -2236,7 +2050,6 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                             await refreshData();
                             queueMicrotask(connectRealtime);
                         } else startPolling();
-                        if (activeTab.value === 'proxy') setTimeout(pcInitProxy, 0);
                     }
                     await fetchProbeData();
                     if (!isLoggedIn.value || role.value !== 'admin') startProbePolling();
@@ -2265,344 +2078,6 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
         }).mount('#app');
     </script>
 
-    <script>
-        /* ================= Proxy Controller 双活引擎总控 (内联逻辑) ================= */
-        let pcInterval = null;
-        let pcCurrentScoreIp = "";
-
-        function pcEscapeHtml(value) {
-            return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        }
-
-        async function getPcAuthHeader(method, path) {
-            const user = localStorage.getItem('xui_user') || 'admin';
-            const key = localStorage.getItem('xui_auth_key') || '';
-            if (!key) return '';
-            return `Bearer ${key}`;
-        }
-
-        async function pcFetchCountries() {
-            try {
-                const auth = await getPcAuthHeader('GET', '/api/proxy/countries');
-                const res = await fetch('/api/proxy/countries', { headers: { 'Authorization': auth } });
-                const list = await res.json();
-                const container = document.getElementById('countries-list');
-                if (!container) return;
-                container.innerHTML = list.map(c => `<span class="bg-slate-800/80 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-300 transition-colors border border-slate-700/50 px-2.5 py-1 rounded-md text-xs font-mono font-bold shadow-sm cursor-default">${pcEscapeHtml(c)}</span>`).join('');
-            } catch(e) {}
-        }
-
-        async function pcLoadConfig() {
-            try {
-                const auth = await getPcAuthHeader('GET', '/api/proxy/config');
-                const res = await fetch('/api/proxy/config', { headers: { 'Authorization': auth } });
-                if (!res.ok) { const err = await res.text(); throw new Error(err || res.status); }
-                const map = await res.json();
-                const cfg0 = document.getElementById('slot-cfg-0');
-                const port = document.getElementById('slot-port');
-                const country = map["0"] || map.proxy?.country || 'JP';
-                if (cfg0) cfg0.value = String(country).toUpperCase();
-                if (port) port.value = map["port"] || map.proxy?.port || 7920;
-            } catch(e) { console.warn('[pc] loadConfig failed:', e); }
-        }
-
-        async function pcSaveConfig() {
-            const val = document.getElementById(`slot-cfg-0`).value.toUpperCase().trim() || 'JP';
-            const port = parseInt(document.getElementById(`slot-port`).value) || 7920;
-            try {
-                const targets = window.xuiManagedServerIps?.() || [];
-                if (!targets.length) throw new Error('暂无已接入 VPS');
-                let text = '';
-                for (const ip of targets) {
-                    const auth = await getPcAuthHeader('POST', '/api/proxy/config');
-                    const res = await fetch('/api/proxy/config', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ip, "0": val, "country": val, "port": port }) });
-                    text = await res.text();
-                    if (!res.ok) throw new Error(text || res.status);
-                    window.xuiNotifyRealtime?.(ip);
-                }
-                // 直接从 POST 响应体更新输入字段，避免立即回读时 D1 最终一致性导致读到旧数据
-                try {
-                    const resp = JSON.parse(text);
-                    const saved = resp.slot_map || resp.proxy || {};
-                    const cfg0 = document.getElementById('slot-cfg-0');
-                    const portEl = document.getElementById('slot-port');
-                    if (cfg0) cfg0.value = String(saved["0"] || saved.country || val).toUpperCase();
-                    if (portEl) portEl.value = saved.port || port;
-                } catch(e) { console.warn('[pc] parse response failed', e); }
-                alert(`🚀 策略及端口已实时下发到 ${targets.length} 台 VPS！`);
-            } catch (e) { alert('❌ 下发失败: ' + e.message); }
-        }
-
-        async function pcSwitchIP() {
-            const val = document.getElementById(`slot-cfg-0`).value.toUpperCase().trim() || 'JP';
-            const port = parseInt(document.getElementById(`slot-port`).value) || 7920;
-            try {
-                const targets = window.xuiManagedServerIps?.() || [];
-                if (!targets.length) throw new Error('暂无已接入 VPS');
-                const trigger = Date.now();
-                for (const ip of targets) {
-                    const auth = await getPcAuthHeader('POST', '/api/proxy/config');
-                    const res = await fetch('/api/proxy/config', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': auth }, body: JSON.stringify({ ip, "0": val, "country": val, "port": port, "switch_trigger": trigger }) });
-                    if (!res.ok) { const err = await res.text(); throw new Error(err || res.status); }
-                    window.xuiNotifyRealtime?.(ip);
-                }
-                alert(`🔄 重拨指令已实时下发到 ${targets.length} 台 VPS！`);
-            } catch (e) { alert('❌ 下发失败: ' + e.message); }
-        }
-
-        async function pcLoadNativeIpScore(ip) {
-            const container = document.getElementById('pc-native-score-container');
-            if (!container) return;
-            container.innerHTML = '<div class="col-span-full py-16 flex flex-col items-center justify-center text-slate-500"><svg class="animate-spin h-8 w-8 text-indigo-500 mb-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>穿透请求中，正在构建原生质检报告...</span></div>';
-
-            try {
-                const authHeaders = window.xuiAdminAuthHeader ? await window.xuiAdminAuthHeader() : {};
-                const res = await fetch('/api/proxy/testisp-lookup/' + ip, { headers: authHeaders });
-                const rawText = await res.text();
-
-                let d;
-                try {
-                    d = JSON.parse(rawText);
-                } catch (e) {
-                    const safeText = rawText.substring(0, 500).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    throw new Error(`目标接口返回了非 JSON 格式数据(可能 API 路径错误或被云端盾拦截)。<br>HTTP 状态码: ${res.status}<br><div class="mt-3 text-left bg-slate-900 p-3 rounded text-xs text-rose-300 font-mono break-all overflow-y-auto max-h-32 border border-rose-500/30">${safeText}</div>`);
-                }
-
-                if (!d || !d.geo || !d.isp) {
-                    container.innerHTML = `<div class="col-span-full text-center py-8 text-rose-400 bg-rose-500/10 rounded-xl border border-rose-500/20">无法获取报告: 接口返回数据结构异常 ${pcEscapeHtml(d && d.error || '')}</div>`;
-                    return;
-                }
-
-                const isHosting = d.isp.flag === 'hosting';
-                const threat = !!(d.risk?.threat_listed ?? d.isp?.risk?.threat_listed);
-                const isNative = d.geo.is_native;
-
-                const tags = isHosting
-                    ? '<span class="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold">机房IP</span>'
-                    : '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-bold">家庭宽带</span>';
-
-                const locStr = pcEscapeHtml([d.geo.country, d.geo.city].filter(Boolean).join(" "));
-                const orgStr = pcEscapeHtml(d.isp.org || '-');
-                const safeIp = pcEscapeHtml(ip);
-                const countryCode = pcEscapeHtml(d.geo.country_code || 'N/A');
-                const nativeType = pcEscapeHtml(d.geo.native_type || '广播 IP');
-                const ispType = pcEscapeHtml(d.isp.type || '-');
-                const asn = pcEscapeHtml(d.isp.asn || '-');
-                const timezone = pcEscapeHtml(d.geo.timezone || '-');
-                const driftKm = pcEscapeHtml(d.geo.drift_km || 0);
-                const rdns = pcEscapeHtml(d.isp.rdns || '-');
-                const warning = pcEscapeHtml(d.isp.warning || '未检测到明显异常');
-                const dataSource = pcEscapeHtml(d.data_source || 'Unknown');
-
-                container.innerHTML = `
-                    <div class="col-span-full bg-slate-800/60 border border-slate-700/80 p-5 rounded-2xl flex flex-wrap gap-4 justify-between items-center mb-2 shadow-lg">
-                        <div class="flex items-center gap-4">
-                            <span class="text-3xl font-extrabold font-mono text-white tracking-tight drop-shadow-sm">${safeIp}</span>
-                            <span class="text-slate-400 text-sm hidden sm:flex items-center border-l border-slate-700 pl-4 h-6">
-                                <span class="uppercase tracking-widest text-indigo-400 mr-2 text-xs font-bold">${countryCode}</span>
-                                ${locStr} · ${orgStr}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-800/40 border border-slate-700/60 p-6 rounded-2xl flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow hover:bg-slate-800/60">
-                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest pb-3 border-b border-slate-700/50">基础物理画像</h4>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">IP 原生性</span> <span class="font-medium text-sm">${isNative ? '<span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold">原生 IP (Native)</span>' : `<span class="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold">${nativeType}</span>`}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">业务标记</span> <div class="flex gap-1">${tags}</div></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">运营类型</span> <span class="font-medium ${isHosting ? 'text-rose-400' : 'text-emerald-400'} text-sm">${ispType}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">归属机构</span> <span class="font-medium text-slate-300 text-sm truncate max-w-[150px]" title="${orgStr}">${orgStr}</span></div>
-                    </div>
-
-                    <div class="bg-slate-800/40 border border-slate-700/60 p-6 rounded-2xl flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow hover:bg-slate-800/60">
-                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest pb-3 border-b border-slate-700/50">ISP 网络底层</h4>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">ASN</span> <span class="font-medium text-indigo-300 text-sm font-mono">${asn}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">解析时区</span> <span class="font-medium text-slate-300 text-sm font-mono">${timezone}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">偏移量 (Drift)</span> <span class="font-medium ${d.geo.has_drift ? 'text-rose-400' : 'text-emerald-400'} text-sm">${driftKm} km</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">反向 DNS (rDNS)</span> <span class="font-medium text-slate-400 text-xs font-mono truncate max-w-[150px]" title="${rdns}">${rdns}</span></div>
-                    </div>
-
-                    <div class="bg-slate-800/40 border border-slate-700/60 p-6 rounded-2xl flex flex-col gap-4 shadow-sm hover:shadow-md transition-shadow hover:bg-slate-800/60">
-                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest pb-3 border-b border-slate-700/50">风险深度检测</h4>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">Spamhaus 情报</span> <span class="${threat ? 'px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold' : 'px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold'}">${threat ? '🚨 已在黑名单' : '✅ 纯净无异常'}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">代理/机房特征</span> <span class="font-medium text-xs font-bold ${d.isp.warning ? 'text-amber-400' : 'text-emerald-400'} truncate max-w-[150px]" title="${warning}">${warning}</span></div>
-                        <div class="flex justify-between items-center"><span class="text-slate-400 text-sm">数据源</span> <span class="font-medium text-slate-400 text-xs">${dataSource}</span></div>
-                    </div>
-                `;
-            } catch (e) {
-                container.innerHTML = `<div class="col-span-full text-left p-6 text-rose-400 bg-rose-500/10 rounded-xl border border-rose-500/20">${e.message}</div>`;
-            }
-        }
-
-        let lastPcHttpFetch = 0;
-        let pcHttpServers = [];
-        async function pcFetchNodes() {
-            try {
-                let servers = [];
-                const realtimeSnapshots = Object.values(window.xuiRealtimeProxySnapshots || {});
-                // Realtime is a fast path only. Keep an HTTP snapshot so a missing proxy
-                // socket or an incomplete realtime patch cannot hide persisted tunnel data.
-                if (Date.now() - lastPcHttpFetch >= 15000) {
-                    const auth = await getPcAuthHeader('GET', '/api/proxy/nodes');
-                    const res = await fetch(`/api/proxy/nodes?t=${Date.now()}`, { headers: { 'Authorization': auth } });
-                    if (!res.ok) throw new Error(`proxy nodes ${res.status}`);
-                    pcHttpServers = await res.json(); lastPcHttpFetch = Date.now();
-                }
-                servers = pcHttpServers.slice();
-                if (realtimeSnapshots.length) {
-                    const byIp = new Map(servers.map(server => [server.ip, server]));
-                    realtimeSnapshots.forEach(snapshot => {
-                        const previous = byIp.get(snapshot.ip) || {};
-                        const realtimeDetails = Array.isArray(snapshot.proxy?.details) && snapshot.proxy.details.length ? JSON.stringify(snapshot.proxy.details) : previous.details || '[]';
-                        byIp.set(snapshot.ip, { ...previous, ip: snapshot.ip, details: realtimeDetails, last_seen: snapshot.proxy_last_seen || snapshot.updated_at || previous.last_seen, logs: snapshot.proxy?.logs || previous.logs || '' });
-                    });
-                    servers = Array.from(byIp.values());
-                }
-                const tbody = document.getElementById('pc-nodes-table');
-                const terminal = document.getElementById('pc-terminal-output');
-                if (!tbody) return;
-
-                if (!servers || servers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 flex-col items-center justify-center"><svg class="w-12 h-12 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>未检测到在线母机，请在 VPS 运行纳管命令接入</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = servers.map(server => {
-                    const details = JSON.parse(server.details || '[]');
-                    const timeAgo = Math.floor((Date.now() - server.last_seen) / 1000);
-
-                    let proxyBadges = '';
-                    if (details.length === 0) {
-                        if (timeAgo < 120) {
-                            proxyBadges = `
-                            <div class="inline-flex items-center bg-slate-900 border border-sky-500/30 rounded-xl px-3 py-1.5 shadow-inner text-sky-400/90 text-sm">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                通道握手初始化中...
-                            </div>`;
-                        } else if (timeAgo < 360) {
-                            proxyBadges = `
-                            <div class="inline-flex items-center bg-slate-900 border border-slate-700/50 rounded-xl px-3 py-1.5 shadow-inner text-slate-400/80 text-xs">
-                                <svg class="animate-spin -ml-1 mr-2 h-3 w-3 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                隧道数据同步中...
-                            </div>`;
-                        } else {
-                            proxyBadges = `
-                            <div class="inline-flex items-center bg-slate-900 border border-amber-500/30 rounded-xl px-3 py-1.5 shadow-inner text-amber-400/90 text-sm">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                双路通道失联，正在抢救拨号中...
-                            </div>`;
-                        }
-                    } else {
-                        proxyBadges = '<div class="flex flex-col gap-2">' + details.map(d => {
-                            const isActive = d.active;
-                            const statusColorClass = isActive ? 'bg-emerald-500' : 'bg-sky-500';
-                            const statusText = isActive ? 'ACTIVE (业务出口)' : 'STANDBY (热备就绪)';
-                            const borderColorClass = isActive ? 'border-emerald-500/30' : 'border-sky-500/30';
-                            const bgColorClass = isActive ? 'bg-emerald-500/10' : 'bg-sky-500/10';
-                            const textColorClass = isActive ? 'text-emerald-400' : 'text-sky-400';
-
-                            return `
-                            <div class="inline-flex items-center bg-slate-950 border border-slate-800/80 rounded-xl px-2.5 py-1.5 shadow-inner">
-                                <span class="bg-slate-800 text-slate-300 font-mono text-xs px-2 py-0.5 rounded-md mr-3 border border-slate-700 font-bold">${pcEscapeHtml(d.tunnel)}</span>
-                                <span class="bg-indigo-500/20 text-indigo-400 font-bold font-mono text-xs px-2 py-0.5 rounded-md mr-3 border border-indigo-500/20">${pcEscapeHtml(d.country)}</span>
-                                <span class="font-mono text-slate-300 text-sm tracking-wide mr-3" title="出口物理 IP">${pcEscapeHtml(d.node_ip || '---.---.---.---')}:${pcEscapeHtml(d.port)}</span>
-                                <span class="flex items-center gap-1.5 ${textColorClass} ${bgColorClass} px-2 py-0.5 rounded-md border ${borderColorClass} text-xs font-medium">
-                                    <span class="w-1.5 h-1.5 rounded-full ${statusColorClass} shadow-[0_0_5px_currentColor]"></span> ${statusText}
-                                </span>
-                            </div>`;
-                        }).join('') + '</div>';
-                    }
-
-                    return `
-                        <tr class="hover:bg-slate-800/30 transition-colors group">
-                            <td class="py-5 px-6 font-mono text-indigo-300 align-middle">
-                                <div class="flex items-center gap-2">
-                                    <svg class="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"></path></svg>
-                                    ${pcEscapeHtml(server.ip)}
-                                </div>
-                            </td>
-                            <td class="py-5 px-6 align-middle">${proxyBadges}</td>
-                            <td class="py-5 px-6 align-middle">
-                                <span class="flex items-center gap-1.5 ${timeAgo < 20 ? 'text-emerald-400' : 'text-rose-400'} font-mono text-xs">
-                                    <span class="w-1.5 h-1.5 rounded-full ${timeAgo < 20 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}"></span>
-                                    ${timeAgo}s 前
-                                </span>
-                            </td>
-                            <td class="py-5 px-6 align-middle text-right">
-                                <span class="${details.length === 2 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (details.length === 1 ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30')} py-1 px-3 rounded-md text-xs font-mono font-bold">
-                                    ${details.length} / 2
-                                </span>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-
-                if (servers.length > 0 && servers[0].details) {
-                    const details = JSON.parse(servers[0].details);
-                    const activeNode = details.find(d => d.active) || details[0];
-                    if (activeNode && activeNode.node_ip) {
-                        const newIp = activeNode.node_ip;
-                        if (newIp !== pcCurrentScoreIp) {
-                            pcCurrentScoreIp = newIp;
-                            const scoreSection = document.getElementById('pc-ip-score-section');
-                            if (scoreSection) scoreSection.style.display = 'block';
-
-                            const scoreLink = document.getElementById('pc-ip-score-link');
-                            scoreLink.href = `https://testisp.info/?ip=${newIp}`;
-                            scoreLink.onclick = (e) => {
-                                e.preventDefault();
-                                navigator.clipboard.writeText(newIp).then(() => {
-                                    alert('🟢 已自动复制隧道节点 IP: ' + newIp + '\n\n由于 testisp.info 官网默认仅检测本机，请在随后打开的网页【输入框】中【粘贴】并回车查询！');
-                                    window.open(`https://testisp.info/?ip=${newIp}`, '_blank');
-                                }).catch(() => {
-                                    window.open(`https://testisp.info/?ip=${newIp}`, '_blank');
-                                });
-                            };
-
-                            pcLoadNativeIpScore(newIp);
-                        }
-                    }
-                }
-
-                if (terminal && servers[0] && servers[0].logs) {
-                    const isAtBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 30;
-
-                    let logHTML = servers[0].logs
-                        .replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                        .replace(/\[\*\]/g, '<span class="text-indigo-400 font-bold">[*]</span>')
-                        .replace(/\[\+\]/g, '<span class="text-emerald-400 font-bold">[+]</span>')
-                        .replace(/\[\-\]/g, '<span class="text-rose-400 font-bold">[-]</span>')
-                        .replace(/\[\!\]/g, '<span class="text-amber-400 font-bold">[!]</span>');
-
-                    terminal.innerHTML = '<pre class="whitespace-pre-wrap break-all">' + logHTML + '</pre>';
-
-                    if (isAtBottom) {
-                        terminal.scrollTop = terminal.scrollHeight;
-                    }
-                }
-
-            } catch (err) {}
-        }
-
-        function pcInitProxy() {
-            pcStopProxy();
-            pcCurrentScoreIp = "";
-
-            try {
-                const origin = window.location.origin;
-                const el = document.getElementById('agent-cmd');
-                if (el) el.textContent = '住宅代理已合并到服务器 Full Deploy Command，无需二次安装。';
-            } catch (e) {}
-
-            pcFetchCountries();
-            pcLoadConfig();
-            pcFetchNodes();
-            if (!window.xuiRealtimeConnected) pcInterval = setInterval(pcFetchNodes, 15000);
-        }
-
-        function pcStopProxy() {
-            if (pcInterval) { clearInterval(pcInterval); pcInterval = null; }
-        }
-    </script>
 
     <!-- ===== WebSSH 终端弹窗 ===== -->
     <div id="webssh-modal" class="hidden fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
