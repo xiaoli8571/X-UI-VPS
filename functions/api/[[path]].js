@@ -1730,7 +1730,7 @@ export async function onRequest(context) {
         
         // Invalid tokens deliberately look like absent endpoints. Protected
         // subscriptions return a harmless HTTP 200 profile before validation.
-        if (!isValid) return json({ error: "Not found" }, 404);
+        if (!isValid) return Response.json({ error: "Not found" }, { status: 404 });
         
         const now = Date.now(); 
         let query; 
