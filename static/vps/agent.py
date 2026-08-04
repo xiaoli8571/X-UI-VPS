@@ -1108,7 +1108,7 @@ def build_singbox_config(nodes, proxy_cfg=None, peers=None, mesh=None, socks5_ou
             except OSError: pass
 
 def report_status(current_nodes, argo_urls, force_http=False, allow_http=True):
-    global last_reported_bytes, global_interval, fast_mode, dynamic_ping, pending_report_id, pending_report_bytes, pending_node_traffic, pending_report_payload, last_http_report
+    global last_reported_bytes, global_interval, fast_mode, dynamic_ping, pending_report_id, pending_report_bytes, pending_node_traffic, pending_report_payload, last_http_report, REALTIME_STATUS_ACTIVE_INTERVAL, REALTIME_STATUS_IDLE_INTERVAL, REALTIME_HTTP_INTERVAL, HEARTBEAT_INTERVAL_FALLBACK, CONFIG_INTERVAL_FALLBACK
     status = get_system_status(global_interval)
     status["ip"] = VPS_IP
     status["connections"] = get_active_connections()
@@ -1186,7 +1186,6 @@ def report_status(current_nodes, argo_urls, force_http=False, allow_http=True):
             value = resp_data.get(f"ping_{key}")
             dynamic_ping[key] = None if not value or value == "default" else value
         # 面板系统设置可配置的间隔（动态更新，替代硬编码 10s）
-        global REALTIME_STATUS_ACTIVE_INTERVAL, REALTIME_STATUS_IDLE_INTERVAL, REALTIME_HTTP_INTERVAL, HEARTBEAT_INTERVAL_FALLBACK, CONFIG_INTERVAL_FALLBACK
         def _clamp_interval(v, default, lo=3, hi=3600):
             try:
                 n = int(v)
