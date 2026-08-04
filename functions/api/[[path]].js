@@ -1455,7 +1455,7 @@ export async function onRequest(context) {
         await ensureDbSchema(db);
         const data = validateTrafficReport(await readJsonBody(request, MAX_REPORT_BYTES));
         const nowMs = Date.now();
-        const vpsIp = data.ip;
+        let vpsIp = data.ip;
         const authHeader = request.headers.get("Authorization");
         const verifiedIp = await verifyAgent(authHeader, vpsIp, db, env);
         if (!verifiedIp) {
@@ -1630,7 +1630,7 @@ export async function onRequest(context) {
 
     if (action === "config" && method === "GET") {
         await ensureDbSchema(db);
-        const ip = new URL(request.url).searchParams.get("ip"); const now = Date.now(); const adminUser = env.ADMIN_USERNAME || "admin";
+        let ip = new URL(request.url).searchParams.get("ip"); const now = Date.now(); const adminUser = env.ADMIN_USERNAME || "admin";
         const authHeader = request.headers.get("Authorization");
         const currentUser = await verifyAuth(authHeader, request, db, env, context);
         const agentVerifiedIp = await verifyAgent(authHeader, ip, db, env);
