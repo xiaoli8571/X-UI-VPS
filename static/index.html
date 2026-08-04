@@ -1735,7 +1735,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 };
                 const getVpsName = (ip) => servers.value.find(s => s.ip === ip)?.name || ip;
                 
-                const generateProbeCmd = (ip) => { const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=probe-installer`; return `curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
+                const generateProbeCmd = (ip) => { const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=probe-installer`; return `sh -c 'command -v curl >/dev/null 2>&1 || { command -v apt-get >/dev/null 2>&1 && apt-get update -qq && apt-get install -y -qq curl; command -v apk >/dev/null 2>&1 && apk add --no-cache curl; }' && curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
                 const myConnections = computed(() => {
                     const ips = new Set((nodes.value || []).map(n => n.vps_ip));
                     return (servers.value || []).filter(s => ips.has(s.ip)).reduce((sum, s) => sum + (Number(s.connections) || 0), 0);
@@ -1749,7 +1749,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     } catch (e) { alert('推送失败: ' + e.message); }
                 };
                 const saveOsMap = () => { localStorage.setItem('xui_deploy_os', JSON.stringify(deployOsMap)); };
-                const generateCmd = (ip) => { const osType = deployOsMap[ip] || 'debian'; const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=full-installer`; if (osType === 'alpine') return `apk update && apk add curl && curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; else return `apt-get update -y && apt-get install -y curl && bash <(curl -fsSL -H "Authorization: ${token}" "${scriptUrl}") --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
+                const generateCmd = (ip) => { const osType = deployOsMap[ip] || 'debian'; const token = servers.value.find(s => s.ip === ip)?.agent_token || ''; if (!token) return '请先刷新页面以签发独立 Agent Token'; const scriptUrl = `${currentDomain}/api/agent_update?ip=${encodeURIComponent(ip)}&component=full-installer`; if (osType === 'alpine') return `apk update && apk add curl && curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; else return `apt-get update -y && apt-get install -y curl && curl -fsSL -H "Authorization: ${token}" "${scriptUrl}" | sh -s -- --api "${currentDomain}" --ip "${ip}" --token "${token}"`; };
 
                 const saveSiteTitle = async () => { if(!siteTitleInput.value) return alert('名称不能为空！'); await fetchApi('/api/settings', { method: 'POST', body: JSON.stringify({ site_title: siteTitleInput.value }) }); siteTitle.value = siteTitleInput.value; alert('✅ XUI 聚合面板名称保存成功！'); };
                 const subDomainInput = ref('');

@@ -2348,7 +2348,11 @@ rules:
             const asset = await env.ASSETS.fetch(new URL(`/vps/${scriptName}`, request.url));
             if (!asset.ok) return Response.json({ error: `${scriptName} 未找到` }, { status: 404 });
             const script = await asset.text();
-            const origin = new URL(request.url).origin;
+            // 用反代转发头构造外部可访问的 https origin（Node 本地转发时 request.url 是 http://127.0.0.1:port）
+            const forwardedProto = request.headers.get('x-forwarded-proto') || '';
+            const proto = forwardedProto.split(',')[0].trim() || 'https';
+            const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || new URL(request.url).host;
+            const origin = `${proto}://${host}`;
             const token = row.agent_token || '';
             const args = ['--api', origin, '--ip', ip, '--token', token];
             const r = await exec(ip, script, args, 600000);

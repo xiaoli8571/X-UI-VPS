@@ -120,7 +120,10 @@ async function podmanExec(ip, scriptContent, args, timeoutMs) {
   if (!row || !row.ssh_pass) throw new Error('未配置 SSH 凭据，请先在服务器卡片填写');
   const sshPort = Number(row.ssh_port) || 22;
   const argStr = (args || []).map(shellQuote).join(' ');
-  const cmd = `bash -s -- ${argStr}`;
+  // 自举：部分精简系统没有 bash/curl/wget —— 先用 sh（保证存在）安装缺失工具，
+  // 再 exec bash 执行喂入的脚本（stdin 缓冲的脚本内容在 exec 后继续被 bash 读取）。
+  const bootstrap = `command -v bash >/dev/null 2>&1 || { if command -v apt-get >/dev/null 2>&1; then apt-get update -qq >/dev/null 2>&1; apt-get install -y -qq bash curl wget >/dev/null 2>&1; elif command -v apk >/dev/null 2>&1; then apk add --no-cache bash curl wget >/dev/null 2>&1; elif command -v yum >/dev/null 2>&1; then yum install -y -q bash curl wget >/dev/null 2>&1; fi; }; command -v curl >/dev/null 2>&1 || { if command -v apt-get >/dev/null 2>&1; then apt-get install -y -qq curl >/dev/null 2>&1; elif command -v apk >/dev/null 2>&1; then apk add --no-cache curl >/dev/null 2>&1; fi; }; exec bash -s -- ${argStr}`;
+  const cmd = `sh -c ${shellQuote(bootstrap)}`;
   return await new Promise((resolve, reject) => {
     const conn = new Client();
     let output = '';
