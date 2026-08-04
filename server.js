@@ -108,6 +108,48 @@ const assetsAdapter = {
 };
 
 // ---------------------------------------------------------------------------
+// Podman SSH 执行器 — 面板通过已保存的 SSH 凭据远程执行脚本/命令
+// (自托管版独有；Cloudflare Worker 版无 ssh2，前端会提示不可用)
+// ---------------------------------------------------------------------------
+function shellQuote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'";
+}
+
+async function podmanExec(ip, scriptContent, args, timeoutMs) {
+  const row = await db.prepare('SELECT ssh_user, ssh_pass, ssh_port FROM servers WHERE ip = ?').bind(ip).first();
+  if (!row || !row.ssh_pass) throw new Error('未配置 SSH 凭据，请先在服务器卡片填写');
+  const sshPort = Number(row.ssh_port) || 22;
+  const argStr = (args || []).map(shellQuote).join(' ');
+  const cmd = `bash -s -- ${argStr}`;
+  return await new Promise((resolve, reject) => {
+    const conn = new Client();
+    let output = '';
+    let settled = false;
+    let timer;
+    const finish = (ok, exitCode, extra) => {
+      if (settled) return; settled = true;
+      clearTimeout(timer);
+      try { conn.end(); } catch (_) {}
+      resolve({ ok, output: output + (extra || ''), exitCode });
+    };
+    conn.on('ready', () => {
+      conn.exec(cmd, (err, stream) => {
+        if (err) { finish(false, -1, '\n[exec error] ' + (err.message || '')); return; }
+        stream.on('close', (code) => finish(true, code))
+              .on('data', (d) => { output += d.toString(); })
+              .stderr.on('data', (d) => { output += d.toString(); });
+        // 通过 stdin 把脚本内容喂给 bash -s
+        if (scriptContent) { stream.write(scriptContent); }
+        stream.end();
+      });
+    });
+    conn.on('error', (e) => { if (!settled) { clearTimeout(timer); reject(new Error('SSH: ' + (e.message || '连接失败'))); } });
+    timer = setTimeout(() => finish(false, -1, '\n[timeout after ' + Math.round((timeoutMs || 600000) / 1000) + 's]'), timeoutMs || 600000);
+    conn.connect({ host: ip, port: sshPort, username: row.ssh_user || 'root', password: row.ssh_pass, readyTimeout: 15000 });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Environment (what the Worker would get from Cloudflare bindings)
 // ---------------------------------------------------------------------------
 const env = {
@@ -124,6 +166,8 @@ const env = {
   PAGES_ORIGIN: process.env.PAGES_ORIGIN || '',
   // Leave empty: notifyRealtimeVps() becomes a no-op and agents use HTTP polling.
   REALTIME_URL: process.env.REALTIME_URL || '',
+  // Podman SSH 执行器（自托管版注入；Cloudflare Worker 版为 undefined）
+  podmanExec,
   ...(process.env.PROXY_CTRL_URL
     ? {
         PROXY_CTRL_URL: process.env.PROXY_CTRL_URL,

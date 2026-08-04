@@ -2166,6 +2166,84 @@ rules:
             }
         }
 
+        if (action === "podman" && isAdmin) {
+            await ensureDbSchema(db);
+            // Podman 一键安装 / 容器管理（自托管版注入 env.podmanExec；CF Worker 版无 ssh2）
+            const podman = env.podmanExec;
+            const loadScript = async (name) => {
+                if (!env.ASSETS) return null;
+                const asset = await env.ASSETS.fetch(new URL(`/vps/${name}`, request.url));
+                return asset.ok ? await asset.text() : null;
+            };
+            // 一键安装 Podman 宿主机环境
+            if (method === "POST" && params.path[1] === "install") {
+                const { ip, pool_size } = await readJsonBody(request, 16 * 1024);
+                if (!ip) return Response.json({ error: 'IP required' }, { status: 400 });
+                if (!podman) return Response.json({ error: 'Podman SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+                if (!(await db.prepare('SELECT ip FROM servers WHERE ip = ?').bind(ip).first())) return Response.json({ error: 'VPS not found' }, { status: 404 });
+                const script = await loadScript('podman-install.sh');
+                if (!script) return Response.json({ error: 'podman-install.sh 未找到' }, { status: 404 });
+                const args = [];
+                const pool = Number(pool_size);
+                if (Number.isFinite(pool) && pool > 0) args.push('--pool-size', String(pool));
+                const r = await podman(ip, script, args, 900000);
+                return Response.json({ success: r.ok, exitCode: r.exitCode, output: r.output.slice(-8000) });
+            }
+            // 创建小鸡（非交互参数化）
+            if (method === "POST" && params.path[1] === "create") {
+                const b = await readJsonBody(request, 16 * 1024);
+                const { ip } = b;
+                if (!ip) return Response.json({ error: 'IP required' }, { status: 400 });
+                if (!podman) return Response.json({ error: 'Podman SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+                if (!(await db.prepare('SELECT ip FROM servers WHERE ip = ?').bind(ip).first())) return Response.json({ error: 'VPS not found' }, { status: 404 });
+                const name = String(b.name || '').trim();
+                if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) return Response.json({ error: '容器名称需为字母数字_-，1-64字符' }, { status: 400 });
+                const pass = String(b.pass || '');
+                if (pass.length < 8) return Response.json({ error: 'Root 密码至少 8 位' }, { status: 400 });
+                if (!/^[0-9]+$/.test(String(b.ssh_port || ''))) return Response.json({ error: 'SSH 端口需为数字' }, { status: 400 });
+                if (!/^[0-9]+-[0-9]+$/.test(String(b.port_range || ''))) return Response.json({ error: '业务端口范围格式如 1001-1100' }, { status: 400 });
+                const script = await loadScript('podman-create.sh');
+                if (!script) return Response.json({ error: 'podman-create.sh 未找到' }, { status: 404 });
+                const args = ['--name', name, '--pass', pass];
+                const num = (v, d) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? String(n) : d; };
+                args.push('--cpus', num(b.cpus, '1.0'));
+                args.push('--mem', num(b.mem, '256'));
+                args.push('--disk', num(b.disk, '5'));
+                args.push('--bw', num(b.bw, '10'));
+                args.push('--ssh-port', String(b.ssh_port));
+                args.push('--port-range', String(b.port_range));
+                const r = await podman(ip, script, args, 300000);
+                return Response.json({ success: r.ok, exitCode: r.exitCode, output: r.output.slice(-8000) });
+            }
+            // 容器列表
+            if (method === "GET" && params.path[1] === "containers") {
+                const ip = new URL(request.url).searchParams.get('ip');
+                if (!ip) return Response.json({ error: 'IP required' }, { status: 400 });
+                if (!podman) return Response.json({ error: 'Podman SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+                const r = await podman(ip, "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}\\t{{.Ports}}'", [], 30000);
+                const containers = r.output.split('\n').filter(l => l.trim()).map(l => {
+                    const [name, status, image, ports] = l.split('\t');
+                    return { name: name || '', status: (status || '').trim(), image: (image || '').trim(), ports: (ports || '').trim() };
+                });
+                return Response.json({ success: r.ok, exitCode: r.exitCode, containers, output: r.output.slice(-4000) });
+            }
+            // 容器操作：start/stop/restart/rm
+            if (method === "POST" && params.path[1] === "action") {
+                const b = await readJsonBody(request, 16 * 1024);
+                const { ip, name, action } = b;
+                if (!ip || !name) return Response.json({ error: 'IP and name required' }, { status: 400 });
+                if (!podman) return Response.json({ error: 'Podman SSH 执行器不可用（仅自托管版支持）' }, { status: 501 });
+                const allowed = ['start', 'stop', 'restart', 'rm'];
+                const act = String(action || '');
+                if (!allowed.includes(act)) return Response.json({ error: 'action 需为 start/stop/restart/rm' }, { status: 400 });
+                if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(name))) return Response.json({ error: '非法容器名称' }, { status: 400 });
+                const rmFlag = act === 'rm' ? ' -f' : '';
+                const r = await podman(ip, `podman ${act}${rmFlag} ${String(name)} && echo OK`, [], 30000);
+                return Response.json({ success: r.ok && /OK/.test(r.output), exitCode: r.exitCode, output: r.output.slice(-2000) });
+            }
+            return Response.json({ error: 'Unknown podman sub-route' }, { status: 400 });
+        }
+
         if (action === "nodes" && isAdmin) {
             if (method === "POST") { const n = await request.json(); const protocols = ['VLESS','XTLS-Reality','Reality','Hysteria2','TUIC','Trojan','H2-Reality','gRPC-Reality','AnyTLS','Naive','Socks5','VLESS-Argo','dokodemo-door']; if (!/^[A-Za-z0-9_-]{1,64}$/.test(String(n.id || ''))) return Response.json({ error: 'Invalid node id' }, { status: 400 }); if (!protocols.includes(n.protocol)) return Response.json({ error: 'Invalid protocol' }, { status: 400 }); if (!Number.isInteger(Number(n.port)) || Number(n.port) < 1 || Number(n.port) > 65535) return Response.json({ error: 'Invalid port' }, { status: 400 }); if (!(await db.prepare('SELECT ip FROM servers WHERE ip = ?').bind(n.vps_ip).first())) return Response.json({ error: 'VPS not found' }, { status: 404 }); if (n.protocol === 'dokodemo-door') { if (!['internal','external'].includes(n.relay_type)) return Response.json({error:'Invalid relay type'},{status:400}); if (n.relay_type === 'external' && (!String(n.target_ip||'').trim() || !Number.isInteger(Number(n.target_port)) || Number(n.target_port)<1 || Number(n.target_port)>65535)) return Response.json({error:'Invalid relay target'},{status:400}); if (n.relay_type === 'internal' && !(await db.prepare('SELECT id FROM nodes WHERE id = ? AND vps_ip = ?').bind(n.target_id,n.vps_ip).first())) return Response.json({error:'Internal relay target not found on VPS'},{status:400}); } if (await db.prepare("SELECT id FROM nodes WHERE id = ?").bind(n.id).first()) return Response.json({ error: "Node already exists" }, { status: 409 }); let nodeUser = n.username || currentUser; if (nodeUser === 'admin') nodeUser = currentUser; await db.prepare(`INSERT INTO nodes (id, uuid, vps_ip, protocol, port, sni, private_key, public_key, short_id, relay_type, target_ip, target_port, target_id, enable, traffic_used, traffic_limit, expire_time, username, network, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(n.id, n.uuid, n.vps_ip, n.protocol, Number(n.port), n.sni||null, n.private_key||null, n.public_key||null, n.short_id||null, n.relay_type||null, n.target_ip||null, n.target_port||null, n.target_id||null, 1, 0, Math.max(0, Number(n.traffic_limit)||0), Math.max(0, Number(n.expire_time)||0), nodeUser, n.network||'tcp', String(n.domain||'').trim()).run(); context.waitUntil(notifyRealtimeVps(env, db, n.vps_ip).catch(()=>{})); return Response.json({ success: true }); }
             if (method === "PUT") { const { id, enable, reset_traffic } = await request.json(); const node = await db.prepare('SELECT vps_ip FROM nodes WHERE id = ?').bind(id).first(); if (!node) return Response.json({ error: 'Node not found' }, { status: 404 }); const statements = []; if (reset_traffic) statements.push(db.prepare("UPDATE nodes SET traffic_used = 0 WHERE id = ?").bind(id)); if (enable !== undefined) statements.push(db.prepare("UPDATE nodes SET enable = ? WHERE id = ?").bind(enable ? 1 : 0, id)); if (statements.length) await db.batch(statements); context.waitUntil(notifyRealtimeVps(env, db, node.vps_ip).catch(()=>{})); return Response.json({ success: true }); }
