@@ -16,3 +16,6 @@ Thumbs.db
 
 # temp
 *.tmp
+
+# local ad-hoc ssh debug scripts
+ssh_*.cjs

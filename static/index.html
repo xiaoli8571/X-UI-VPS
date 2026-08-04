@@ -452,6 +452,7 @@
                                     <button @click="toggleVpsCollapse(vps.ip)" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs">{{ isVpsCollapsed(vps.ip) ? '⬇ 展开' : '⬆ 收起' }}</button>
                                     <button @click="openSshSettings(vps)" title="配置 SSH 凭据" class="text-slate-400 hover:text-indigo-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl">🔑 SSH</button>
                                     <button @click="openWebSsh(vps)" title="打开浏览器终端" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs">🖥 WebSSH</button>
+                                    <button @click="openChangeIpModal(vps)" title="修改 IP（无需删除重加）" class="text-slate-400 hover:text-emerald-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl">✏️ 改IP</button>
                                     <button @click="deleteVps(vps.ip)" class="text-slate-300 hover:text-rose-500 font-bold transition-all">彻底移除</button>
                                 </div>
                             </div>
@@ -2623,6 +2624,21 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
         </div>
     </div>
 
+    <!-- ===== 修改 VPS IP 弹窗 ===== -->
+    <div id="change-ip-modal" class="hidden fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7">
+            <h3 class="text-lg font-black text-slate-800 mb-1">✏️ 修改 VPS IP</h3>
+            <p class="text-xs text-slate-400 mb-5">修改后节点订阅/流量/探针等关联数据会一并迁移，<b>无需删除重加</b>。<span class="text-slate-500">当前 IP: <b id="change-ip-current" class="font-mono"></b></span></p>
+            <div class="space-y-4">
+                <div><label class="block text-xs font-bold text-slate-400 mb-1 pl-1">新 IP / 域名</label><input id="change-ip-new" placeholder="例如: 1.2.3.4 或 mo1.deeprush.ai" class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-sm font-mono"></div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="saveChangeIp()" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all">💾 确认修改</button>
+                <button onclick="closeChangeIp()" class="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all">取消</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ===== WebSSH 全局逻辑 =====
         let websshTerm = null; let websshFit = null; let websshWs = null;
@@ -2683,6 +2699,31 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 alert('✅ SSH 凭据已保存');
                 location.reload();
             } catch (e) { alert('保存失败: ' + e.message); }
+        }
+        // ===== 修改 VPS IP =====
+        let changeIpCurrent = '';
+        function openChangeIpModal(vps) {
+            changeIpCurrent = vps.ip;
+            document.getElementById('change-ip-current').textContent = vps.ip;
+            document.getElementById('change-ip-new').value = vps.ip;
+            document.getElementById('change-ip-modal').classList.remove('hidden');
+            setTimeout(() => { try { document.getElementById('change-ip-new').focus(); document.getElementById('change-ip-new').select(); } catch (e) {} }, 50);
+        }
+        function closeChangeIp() { document.getElementById('change-ip-modal').classList.add('hidden'); }
+        async function saveChangeIp() {
+            const newIp = document.getElementById('change-ip-new').value.trim();
+            if (!newIp) { alert('请输入新 IP 或域名'); return; }
+            if (newIp === changeIpCurrent) { alert('新 IP 与当前一致'); return; }
+            if (!confirm(`确认将 ${changeIpCurrent} 修改为 ${newIp}？\n节点订阅、流量、探针、SSH 凭据等关联数据会一并迁移。`)) return;
+            try {
+                const token = localStorage.getItem('xui_auth_key') || '';
+                const res = await fetch('/api/vps', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ip: changeIpCurrent, new_ip: newIp }) });
+                const r = await res.json();
+                if (!r.success) throw new Error(r.error || '修改失败');
+                closeChangeIp();
+                alert(`✅ IP 已修改为 ${r.ip}\n若该 VPS 有部署 Agent，请用新的安装命令重新部署（IP 变化后 Agent 需重新注册）。`);
+                location.reload();
+            } catch (e) { alert('修改失败: ' + e.message); }
         }
     </script>
 </body>
