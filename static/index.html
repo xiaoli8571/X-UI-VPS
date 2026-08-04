@@ -681,7 +681,11 @@
                         <div class="flex justify-between items-start mb-6"><div><h3 class="text-2xl font-black text-slate-800 mb-1 flex items-center gap-2">{{ u.username }} <span v-if="u.enable===0" class="text-[10px] bg-rose-100 text-rose-600 px-2 py-1 rounded-lg">已封禁</span></h3><div class="text-xs text-slate-400 font-medium">到期: {{ formatDate(u.expire_time) }}</div></div><div class="flex gap-2"><button @click="toggleUser(u.username, u.enable===1?0:1)" class="px-3 py-1.5 bg-white border border-slate-100 hover:bg-slate-50 rounded-xl text-xs font-bold shadow-sm">{{ u.enable===1?'停用':'启用' }}</button><button @click="deleteUser(u.username)" class="px-3 py-1.5 bg-rose-50 text-rose-500 rounded-xl text-xs font-bold transition-all">删除</button></div></div>
                         <div class="flex justify-between text-xs text-slate-500 mb-2 font-bold"><span>已用: {{ formatBytes(u.traffic_used) }}</span><span>上限: {{ u.traffic_limit > 0 ? formatBytes(u.traffic_limit) : '无限' }}</span></div>
                         <div class="w-full bg-slate-100 rounded-full h-2.5 mb-3 overflow-hidden shadow-inner"><div :class="(u.traffic_limit > 0 && u.traffic_used >= u.traffic_limit) ? 'bg-rose-500' : 'bg-gradient-to-r from-blue-400 to-indigo-500'" class="h-2.5 rounded-full" :style="{ width: getTrafficPercent(u.traffic_used, u.traffic_limit) + '%' }"></div></div>
-                        <button v-if="u.traffic_used > 0" @click="resetUserTraffic(u.username)" class="text-[11px] text-indigo-500 font-bold hover:underline">重置流量</button>
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <button v-if="u.traffic_used > 0" @click="resetUserTraffic(u.username)" class="text-[11px] text-indigo-500 font-bold hover:underline">重置流量</button>
+                            <button @click="copyUserSubLink(u)" class="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg hover:bg-emerald-100 transition-colors" title="复制该用户的订阅链接（含流量/时间限制）">🔗 复制订阅</button>
+                            <button @click="copyUserSubLink(u, 'clash')" class="text-[11px] text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded-lg hover:bg-orange-100 transition-colors" title="复制该用户的 Clash 订阅链接（含流量/时间限制）">🔗 Clash订阅</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1485,6 +1489,13 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 const toggleUser = async (username, status) => { await fetchApi('/api/users', { method: 'PUT', body: JSON.stringify({ username, enable: status }) }); refreshData(); };
                 const deleteUser = async (username) => { if(confirm('⚠️ 确定删除用户？节点将归还给管理员。')) { await fetchApi(`/api/users?username=${username}`, { method: 'DELETE' }); refreshData(); } };
                 const resetUserTraffic = async (username) => { await fetchApi('/api/users', { method: 'PUT', body: JSON.stringify({ username, reset_traffic: true }) }); refreshData(); };
+                const copyUserSubLink = (u, format = '') => {
+                    if (!u || !u.sub_token) return alert('该用户暂无订阅令牌，请刷新后重试');
+                    const base = subDomain.value || currentDomain.value;
+                    let link = `${base}/api/sub?user=${encodeURIComponent(u.username)}&token=${encodeURIComponent(u.sub_token)}`;
+                    if (format) link += `&format=${format}`;
+                    copyCommand(link, `用户 ${u.username} 的${format === 'clash' ? ' Clash ' : ' '}订阅链接已复制！\n该订阅将执行该用户的流量/时间限制。`);
+                };
                 const groupDraft = group => groupDrafts[group.id] || (groupDrafts[group.id] = { members: [], resources: [] });
                 const addGroup = async () => { const name = newGroupName.value.trim(); if (!name) return alert('请输入用户组名称'); await fetchApi('/api/groups', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) }); newGroupName.value = ''; refreshData(); };
                 const saveGroup = async group => { const draft = groupDraft(group); const resources = draft.resources.map(value => { const separator = value.indexOf(':'); return { type: value.slice(0, separator), id: value.slice(separator + 1) }; }).filter(resource => resource.type && resource.id); await fetchApi('/api/groups', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id: group.id, members: draft.members, resources }) }); refreshData(); };
@@ -2087,7 +2098,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 return { 
                     isLoggedIn, showLoginModal, loginUser, password, currentUser, role, activeTab, 
                     servers, nodes, users, groups, newVps, newNodeParams, newUser, newGroupName,
-                    login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic, pushAgentUpdate, subDomainInput, saveSubDomain,
+                    login, logout, refreshData, addUser, toggleUser, deleteUser, resetUserTraffic, copyUserSubLink, addGroup, saveGroup, deleteGroup, groupDraft, addVps, deleteVps, exportVps, importVpsFile, parseVpsImport, addNode, deleteNode, toggleNode, resetTraffic, pushAgentUpdate, subDomainInput, saveSubDomain,
                     podmanIp, podmanBusy, podmanOutput, podmanContainers, podmanForm, podmanInstall, podmanCreate, podmanLoadContainers, podmanAction, deployToVps, deploySshMissing, deployBusy, deployOutput,
                     getNodesByIp, getVpsName, formatBytes, formatDate, getExpireText, getTrafficPercent, getPingColor, isOnline, generateCmd, generateProbeCmd, generateSubLink, copyCommand, nodeCollapsed, toggleNodeCollapse, visibleNodes, vpsCollapsed, isVpsCollapsed, toggleVpsCollapse, myConnections,
                     globalOnline, globalTraffic, globalSpeedIn, globalSpeedOut, deployOsMap, saveOsMap, siteTitle, siteTitleInput, saveSiteTitle, userNewPassword, updateUserPassword, resetMySubLink, generateUUIDForNewUser, batchStartPort, batchUser, deployAllProtocols,
