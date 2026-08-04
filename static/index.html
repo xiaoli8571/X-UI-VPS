@@ -443,17 +443,17 @@
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
                     <div v-for="vps in servers" :key="vps.ip" class="bg-white/70 backdrop-blur-xl rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 flex flex-col overflow-hidden transition-all hover:shadow-2xl">
                         <div class="p-6 md:p-8 relative">
-                            <div class="flex justify-between items-start mb-4">
+                            <div class="mb-4">
                                 <div class="min-w-0 flex-1 mr-2">
                                     <h3 class="font-black text-2xl text-slate-800 flex items-center gap-2 mb-1">{{ vps.name }}<span :class="vps.realtime_state === 'stale' ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]' : (isOnline(vps.last_report, vps.realtime_state) ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]')" class="w-3 h-3 rounded-full inline-block"></span></h3>
                                     <p class="text-sm font-mono text-slate-400 font-medium break-all">{{ vps.ip }}</p>
                                 </div>
-                                <div class="flex gap-2 items-center shrink-0 ml-2">
-                                    <button @click="toggleVpsCollapse(vps.ip)" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs">{{ isVpsCollapsed(vps.ip) ? '⬇ 展开' : '⬆ 收起' }}</button>
-                                    <button @click="openSshSettings(vps)" title="配置 SSH 凭据" class="text-slate-400 hover:text-indigo-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl">🔑 SSH</button>
-                                    <button @click="openWebSsh(vps)" title="打开浏览器终端" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs">🖥 WebSSH</button>
-                                    <button @click="openChangeIpModal(vps)" title="修改 IP（无需删除重加）" class="text-slate-400 hover:text-emerald-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl">✏️ 改IP</button>
-                                    <button @click="deleteVps(vps.ip)" class="text-slate-300 hover:text-rose-500 font-bold transition-all">彻底移除</button>
+                                <div class="flex gap-1.5 items-center flex-wrap mt-3">
+                                    <button @click="toggleVpsCollapse(vps.ip)" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs whitespace-nowrap">{{ isVpsCollapsed(vps.ip) ? '⬇ 展开' : '⬆ 收起' }}</button>
+                                    <button @click="openWebSsh(vps)" title="打开浏览器终端" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl font-bold hover:bg-black transition-all shadow-sm text-xs whitespace-nowrap">🖥 WebSSH</button>
+                                    <button @click="openSshSettings(vps)" title="配置 SSH 凭据" class="text-slate-400 hover:text-indigo-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl whitespace-nowrap">🔑 SSH</button>
+                                    <button @click="openChangeIpModal(vps)" title="修改 IP（无需删除重加）" class="text-slate-400 hover:text-emerald-600 font-bold transition-all text-xs bg-white/60 border border-white px-2.5 py-1.5 rounded-xl whitespace-nowrap">✏️ 改IP</button>
+                                    <button @click="deleteVps(vps.ip)" class="text-slate-300 hover:text-rose-500 font-bold transition-all text-xs whitespace-nowrap">彻底移除</button>
                                 </div>
                             </div>
                             <div class="flex justify-between text-[10px] text-slate-400 font-mono font-black mb-4 px-1 uppercase tracking-wider"><span>UP: {{ vps.uptime || 'N/A' }}</span><span>LOAD: {{ vps.load || '0.00' }}</span><span>CONN: {{ vps.connections || 0 }}</span></div>
@@ -1672,7 +1672,9 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                     try {
                         const opts = { method, headers: { 'Content-Type': 'application/json' } };
                         if (method === 'POST') opts.body = JSON.stringify(body);
-                        const res = await fetchApi(`/api/podman/${sub}`, opts);
+                        let url = `/api/podman/${sub}`;
+                        if (method === 'GET' && body && body.ip) url += `?ip=${encodeURIComponent(body.ip)}`;
+                        const res = await fetchApi(url, opts);
                         const data = await res.json();
                         podmanOutput.value = data.output || (data.success ? '✅ 成功' : '❌ 失败');
                         return data;
@@ -1697,7 +1699,7 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 const podmanLoadContainers = async () => {
                     if (!podmanIp.value) return;
                     podmanContainers.value = [];
-                    const data = await podmanExec('containers', {}, 'GET');
+                    const data = await podmanExec('containers', { ip: podmanIp.value }, 'GET');
                     if (data.containers) podmanContainers.value = data.containers;
                 };
                 const podmanAction = async (name, action) => {
