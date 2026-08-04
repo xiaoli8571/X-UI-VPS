@@ -1487,8 +1487,19 @@ if __name__ == "__main__":
             try: os.remove("/opt/xui/.update-pending")
             except FileNotFoundError: pass
         elif initial_nodes is None or not _singbox_service_healthy() or not report_status(list(initial_nodes), [], force_http=True):
-            print("[agent] updated version failed readiness checks", flush=True)
-            raise SystemExit(1)
+            print("[agent] updated version failed readiness checks — rolling back to last-good", flush=True)
+            # 回滚：恢复 .last-good 备份，而不是直接退出（避免 agent 自杀导致永久离线）
+            try:
+                for comp in ("agent", "realtime-client"):
+                    backup = os.path.join(os.path.dirname(os.path.abspath(__file__)), comp + ".py.last-good")
+                    target = os.path.join(os.path.dirname(os.path.abspath(__file__)), comp + ".py")
+                    if os.path.exists(backup):
+                        shutil.copy2(backup, target)
+                        print(f"[agent] rolled back {comp}.py", flush=True)
+            except Exception as rollback_error:
+                print(f"[agent] rollback failed: {rollback_error}", flush=True)
+            try: os.remove("/opt/xui/.update-pending")
+            except FileNotFoundError: pass
         else:
             try: os.remove("/opt/xui/.update-pending")
             except FileNotFoundError: pass
