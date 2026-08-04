@@ -7,6 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>XUI x Server Monitor</title>
+    <link rel="icon" type="image/png" href="/logo.png">
     
     <script src="https://unpkg.com/vue@3.5.17/dist/vue.global.prod.js"></script>
     <script>
@@ -193,7 +194,7 @@
             <div v-if="showLoginModal" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
                 <div class="bg-white/80 backdrop-blur-xl border border-white p-6 sm:p-10 rounded-[2rem] shadow-2xl w-full max-w-sm relative">
                     <button @click="showLoginModal = false" class="absolute top-4 right-5 text-2xl text-slate-400 hover:text-slate-600">&times;</button>
-                    <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mx-auto mb-6 shadow-lg flex items-center justify-center"><span class="text-white text-3xl">✨</span></div>
+                    <img src="/logo.png" alt="Jynxen" class="w-16 h-16 rounded-2xl mx-auto mb-6 shadow-lg object-cover">
                     <h2 class="text-3xl font-black mb-8 text-center bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600">系统准入</h2>
                     <input v-model="loginUser" placeholder="用户名 (默认 admin)" class="w-full bg-white/50 border border-white p-4 rounded-2xl mb-4 focus:bg-white transition-all text-slate-700">
                     <input v-model="password" type="password" placeholder="请输入密码" @keyup.enter="login" class="w-full bg-white/50 border border-white p-4 rounded-2xl mb-8 focus:bg-white transition-all text-slate-700">
@@ -212,6 +213,7 @@
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 header">
                     <h1 class="text-2xl font-black m-0 flex items-center gap-3">
                         <span v-if="probeDetailId" @click="probeDetailId = null" class="cursor-pointer text-blue-500 hover:underline text-sm font-medium">⬅ 返回</span>
+                        <img v-if="!probeDetailId" src="/logo.png" alt="Jynxen" class="w-8 h-8 rounded-lg shadow-sm object-cover">
                         {{ probeSys.site_title || 'Server Monitor Pro' }}
                     </h1>
                     
@@ -383,6 +385,7 @@
             
             <div class="bg-white/70 backdrop-blur-xl border border-white/80 p-4 md:px-6 rounded-[2rem] shadow-xl shadow-slate-200/50 flex flex-col lg:flex-row justify-between items-center sticky top-4 z-50 gap-4">
                 <div class="flex flex-wrap justify-center lg:justify-start items-center gap-3 md:gap-4 w-full lg:w-auto">
+                    <img src="/logo.png" alt="Jynxen" class="w-9 h-9 rounded-xl shadow-sm object-cover shrink-0">
                     <h1 class="text-xl md:text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 shrink-0">
                         {{ siteTitle || 'Cluster Gateway' }}
                     </h1>
