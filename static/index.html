@@ -1701,7 +1701,9 @@ body.theme11 #app, body.theme13 #app, body.theme14 #app, body.theme15 #app, body
                 
                 const deployAllProtocols = async (ip) => {
                     let startPort = parseInt(batchStartPort[ip]); if (!startPort || startPort < 10 || startPort + 7 > 65535) return alert('⚠️ 请输入有效的起始端口 (推荐: 8881)');
-                    const defaultSni = 'addons.mozilla.org'; const commonUser = batchUser[ip] || 'admin'; const commonUUID = crypto.randomUUID(); 
+                    const SNI_POOL = ['addons.mozilla.org', 'www.microsoft.com', 'www.bing.com', 'www.cloudflare.com', 'www.apple.com', 'swcdn.apple.com', 'www.samsung.com', 'www.huawei.com', 'www.linkedin.com', 'www.office.com', 'www.shopify.com', 'azure.microsoft.com'];
+                    const pickSniForIp = (ip) => { let h = 0; for (let i = 0; i < ip.length; i++) { h = ((h << 5) - h + ip.charCodeAt(i)) | 0; } return SNI_POOL[Math.abs(h) % SNI_POOL.length]; };
+                    const defaultSni = pickSniForIp(ip); const commonUser = batchUser[ip] || 'admin'; const commonUUID = crypto.randomUUID(); 
                     const protocolSequence = [ { protocol: 'XTLS-Reality', offset: 0, sni: defaultSni, type: 'reality' }, { protocol: 'Hysteria2', offset: 1, sni: defaultSni }, { protocol: 'TUIC', offset: 2, sni: defaultSni }, { protocol: 'Trojan', offset: 3, sni: defaultSni }, { protocol: 'H2-Reality', offset: 4, sni: defaultSni, type: 'reality' }, { protocol: 'gRPC-Reality', offset: 5, sni: defaultSni, type: 'reality' }, { protocol: 'AnyTLS', offset: 6, sni: defaultSni }, { protocol: 'Naive', offset: 7, sni: defaultSni } ];
                     if (!confirm(`🚀 极速部署确认：\n\n系统将按照 FSCARMEN 模式，向该服务器并发下发完整 ${protocolSequence.length} 个协议矩阵：\n` + protocolSequence.map(p => `- ${p.protocol} (端口: ${startPort + p.offset})`).join('\n') + `\n\n所有节点归属: ${commonUser}\n\n确认立刻组建节点矩阵吗？`)) return;
                     const failures = [];

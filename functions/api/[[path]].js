@@ -35,11 +35,33 @@ async function findVps(db, key) {
     return byName || null;
 }
 
+// SNI 池：全部国内可直连 + TLS1.3 + 证书有效（Reality handshake 要求节点服务器能连 SNI:443）
+const SNI_POOL = [
+    'addons.mozilla.org',
+    'www.microsoft.com',
+    'www.bing.com',
+    'www.cloudflare.com',
+    'www.apple.com',
+    'swcdn.apple.com',
+    'www.samsung.com',
+    'www.huawei.com',
+    'www.linkedin.com',
+    'www.office.com',
+    'www.shopify.com',
+    'azure.microsoft.com'
+];
+// 按 VPS IP 稳定分配 SNI（同一 IP 永远同一 SNI，不同 VPS 分散，避免全军覆没）
+function pickSniForIp(ip) {
+    let hash = 0;
+    for (let i = 0; i < ip.length; i++) { hash = ((hash << 5) - hash + ip.charCodeAt(i)) | 0; }
+    return SNI_POOL[Math.abs(hash) % SNI_POOL.length];
+}
+
 // 8合1 全协议批量下发（与前端 deployAllProtocols 逻辑一致）
 async function deploy8Protocols(db, env, ip, startPort) {
     const adminUser = env.ADMIN_USERNAME || 'admin';
     const commonUUID = crypto.randomUUID();
-    const defaultSni = 'addons.mozilla.org';
+    const defaultSni = pickSniForIp(ip);
     const protocolSequence = [
         { protocol: 'XTLS-Reality', offset: 0, sni: defaultSni, type: 'reality' },
         { protocol: 'Hysteria2', offset: 1, sni: defaultSni },
